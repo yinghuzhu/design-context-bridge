@@ -1,0 +1,7 @@
+{
+  "kind": "abstract-eval-fixture",
+  "capabilities": {"multimodal": false, "figmaContextCli": true},
+  "repository": {"path": "project", "target": "/offers/summer"},
+  "context": {"prepare": "complete", "validatePackage": "complete", "inspect": "success"},
+  "preconditions": ["The Agent cannot inspect local images", "Repository modification is not authorized in package-only mode"]
+}

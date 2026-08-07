@@ -1,0 +1,7 @@
+{
+  "kind": "abstract-eval-fixture",
+  "capabilities": {"multimodal": true, "agentBrowser": false, "playwrightMcp": true},
+  "repository": {"target": "/offers/summer", "directFiles": ["src/pages/SummerOffers.tsx", "tests/offers.test.ts"]},
+  "browser": {"playwrightMcpSession": "independent-and-logged-out", "documentedLocalLogin": "available"},
+  "simulatedOutcomes": {"login": "pass", "realScreenshot": "captured", "visual": "pass", "business": "pass"}
+}

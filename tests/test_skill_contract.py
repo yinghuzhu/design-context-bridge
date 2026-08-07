@@ -1,9 +1,11 @@
+import json
 from pathlib import Path
 
 
 SKILL_DIR = Path("skills/figma-replicate")
 SKILL = SKILL_DIR / "SKILL.md"
 OPENAI_YAML = SKILL_DIR / "agents/openai.yaml"
+EVAL_DIR = Path("evals/figma-replicate")
 
 
 def _frontmatter_lines(text: str) -> list[str]:
@@ -298,3 +300,171 @@ def test_new_page_example_is_complete_and_uses_agent_vision() -> None:
     assert "原稿截图" in text and "实际截图" in text
     assert "CLI 图片" in text and "不" in text
     assert "视觉通过但业务失败" in text
+
+
+def test_eval_pack_covers_required_scenarios() -> None:
+    cases = json.loads((EVAL_DIR / "cases.json").read_text(encoding="utf-8"))
+    names = {case["name"] for case in cases}
+    assert names == {
+        "missing-required-input",
+        "non-multimodal-agent",
+        "new-page",
+        "initial-migration",
+        "continuation",
+        "adoption-with-user-reference",
+        "bounded-large-repository",
+        "playwright-mcp-fallback",
+        "documented-login",
+        "mfa-user-handoff",
+        "visual-pass-business-fail",
+    }
+
+
+def test_eval_cases_have_strict_schema_and_confined_paths() -> None:
+    cases = json.loads((EVAL_DIR / "cases.json").read_text(encoding="utf-8"))
+    required_fields = {
+        "name",
+        "fixture",
+        "prompt",
+        "expectedReads",
+        "forbiddenReads",
+        "expectedCommands",
+        "expectedState",
+        "completionAllowed",
+    }
+    eval_root = EVAL_DIR.resolve()
+
+    assert isinstance(cases, list) and cases
+    assert len(cases) == len({case["name"] for case in cases})
+    for case in cases:
+        assert isinstance(case, dict)
+        assert set(case) == required_fields
+        assert isinstance(case["name"], str) and case["name"]
+        assert isinstance(case["fixture"], str) and case["fixture"]
+        assert isinstance(case["prompt"], str) and case["prompt"]
+        assert isinstance(case["expectedReads"], list)
+        assert all(isinstance(value, str) and value for value in case["expectedReads"])
+        assert isinstance(case["forbiddenReads"], list)
+        assert all(isinstance(value, str) and value for value in case["forbiddenReads"])
+        assert isinstance(case["expectedCommands"], list)
+        assert all(isinstance(value, str) and value for value in case["expectedCommands"])
+        assert isinstance(case["expectedState"], dict)
+        assert all(isinstance(key, str) and key for key in case["expectedState"])
+        assert isinstance(case["completionAllowed"], bool)
+
+        fixture = (EVAL_DIR / case["fixture"]).resolve()
+        report = (EVAL_DIR / "expected" / f"{case['name']}.md").resolve()
+        assert fixture.is_relative_to(eval_root)
+        assert report.is_relative_to(eval_root)
+        assert fixture.is_file()
+        assert report.is_file()
+
+
+def test_eval_reports_define_case_specific_gates() -> None:
+    cases = json.loads((EVAL_DIR / "cases.json").read_text(encoding="utf-8"))
+    reports: list[str] = []
+    for case in cases:
+        text = (EVAL_DIR / "expected" / f"{case['name']}.md").read_text(
+            encoding="utf-8"
+        )
+        assert case["name"] in text
+        assert "## 允许行为" in text
+        assert "## 禁止行为" in text
+        assert "## 最终报告条件" in text
+        assert len(text) >= 250
+        reports.append(text)
+
+    assert len(reports) == len(set(reports))
+
+
+def test_eval_cases_encode_required_safety_and_mode_outcomes() -> None:
+    cases = {
+        case["name"]: case
+        for case in json.loads((EVAL_DIR / "cases.json").read_text(encoding="utf-8"))
+    }
+
+    missing = cases["missing-required-input"]
+    assert missing["expectedReads"] == []
+    assert missing["expectedCommands"] == []
+    assert missing["expectedState"]["repository"] == "unchanged"
+    assert missing["completionAllowed"] is False
+
+    non_multimodal = cases["non-multimodal-agent"]
+    assert all(command.startswith("figma-context ") for command in non_multimodal["expectedCommands"])
+    assert non_multimodal["expectedState"]["repository"] == "unchanged"
+    assert non_multimodal["expectedState"]["visualValidation"] == "not-run"
+    assert non_multimodal["completionAllowed"] is False
+
+    assert cases["new-page"]["expectedState"]["mode"] == "new"
+    assert cases["initial-migration"]["expectedState"]["mode"] == "initial"
+    assert cases["initial-migration"]["expectedState"]["approvedReferences"] == []
+    assert cases["continuation"]["expectedState"]["mode"] == "continuation"
+    assert cases["continuation"]["expectedState"]["priorState"] == "preserved"
+    adoption = cases["adoption-with-user-reference"]
+    assert adoption["expectedState"]["mode"] == "adoption"
+    assert adoption["expectedState"]["approvedReferences"] == ["/checkout"]
+    assert adoption["expectedState"]["approvedByUser"] is True
+
+    large = cases["bounded-large-repository"]
+    for directory in (
+        "project/apps/data-warehouse/**",
+        "project/apps/internal-admin/**",
+        "project/packages/unused-design-system/**",
+        "project/vendor/**",
+        "project/node_modules/**",
+        "project/.git/**",
+    ):
+        assert directory in large["forbiddenReads"]
+
+    playwright = cases["playwright-mcp-fallback"]
+    assert playwright["expectedState"]["browser"] == "playwright-mcp-independent-session"
+    assert playwright["expectedState"]["sessionReuse"] == "not-assumed"
+
+    documented = cases["documented-login"]
+    assert "attempted-before-user-interruption" in documented["expectedState"]["login"]
+    assert "project/.env" in documented["forbiddenReads"]
+
+    mfa = cases["mfa-user-handoff"]
+    assert mfa["expectedState"]["credentialRequest"] == "none"
+    assert "MFA" in mfa["prompt"]
+    assert mfa["completionAllowed"] is False
+
+    failed_business = cases["visual-pass-business-fail"]
+    assert failed_business["expectedState"]["visualGate"] == "passed"
+    assert failed_business["expectedState"]["businessGate"] == "failed"
+    assert failed_business["expectedState"]["humanHandoff"] == "forbidden"
+    assert failed_business["completionAllowed"] is False
+
+
+def test_completion_allowed_cases_require_real_screenshot_and_multimodal_compare() -> None:
+    cases = json.loads((EVAL_DIR / "cases.json").read_text(encoding="utf-8"))
+
+    for case in cases:
+        if not case["completionAllowed"]:
+            continue
+        commands = [command.lower() for command in case["expectedCommands"]]
+        assert any(
+            "screenshot real target page" in command
+            and not command.startswith("figma-context ")
+            for command in commands
+        ), case["name"]
+        assert any(
+            "multimodal compare source and actual screenshots" in command
+            for command in commands
+        ), case["name"]
+        assert not any(
+            command.startswith("figma-context ")
+            and any(term in command for term in ("render", "score", "compare"))
+            for command in commands
+        ), case["name"]
+
+
+def test_eval_runbook_is_isolated_and_cross_agent() -> None:
+    text = (EVAL_DIR / "README.md").read_text(encoding="utf-8")
+    assert "mktemp -d" in text
+    assert "codex exec" in text and "$figma-replicate" in text
+    assert "claude -p" in text and "/figma-replicate" in text
+    assert "transcript" in text and "accessed-paths" in text
+    assert "production" in text and "凭据" in text
+    assert "只有 `mfa-user-handoff`" in text
+    assert "只删除" in text and "临时 fixture" in text

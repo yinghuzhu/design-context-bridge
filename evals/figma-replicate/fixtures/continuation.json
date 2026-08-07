@@ -1,0 +1,7 @@
+{
+  "kind": "abstract-eval-fixture",
+  "capabilities": {"multimodal": true, "browser": true},
+  "repository": {"target": "/booking/confirmation", "migrationState": {"schemaVersion": 1, "valid": true, "approvedReferences": [{"route": "/checkout", "approvedByUser": true}]}, "directFiles": ["src/pages/BookingConfirmation.tsx", "src/pages/Checkout.tsx", "src/api/booking.ts"]},
+  "protected": ["confirmation API", "query parameters", "error retry"],
+  "simulatedOutcomes": {"visual": "pass", "business": "pass"}
+}
