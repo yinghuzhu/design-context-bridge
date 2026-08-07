@@ -1,6 +1,6 @@
 # figma-context-bridge
 
-给定一个 Figma URL，一键下载设计稿的节点结构 JSON、整页截图、所有图片素材，并自动还原为可直接使用的前端 HTML 页面。
+一个最小可用的 Figma 设计稿下载与还原工具：给定一个 Figma URL，一键下载设计稿的节点结构 JSON、整页截图、所有图片素材，并自动还原为可直接使用的前端 HTML 页面。
 
 解决的核心痛点：**Figma MCP 调用次数限制 + 多 Agent 重复读取设计稿**。导出一次后，所有 AI Agent 直接读本地文件，不再触碰 Figma API。
 
@@ -173,8 +173,26 @@ scripts/
 
 ## 后续路线
 
-- **Phase 2**：Design Token 提取（`styles.json`）+ `AI_CONTEXT.md` 自动生成 + 组件变体分析
-- **Phase 3**：包装为 MCP Server，让 AI Agent 通过 MCP 工具读取本地缓存的设计上下文
+> 完整的需求与技术说明书见 [docs/design.md](docs/design.md)。
+
+### Phase 1 ✅ 已完成
+
+- URL 解析 + 节点树导出 + 图片批量下载
+- HTML 页面自动还原（reconstruct.html）
+- 本地缓存 + 编排器（figma_pipeline.py）
+- blendMode 处理 + 相对坐标系
+
+### Phase 2 — 规划中
+
+- **Design Token 提取**（`styles.json`）：Color / Typography / Spacing / Radius / Shadow 从 node.json 自动归类
+- **AI_CONTEXT.md 自动生成**：将 node.json 压缩为 AI Agent 直接可读的结构化 Markdown（页面摘要 + 组件说明 + 样式规范 + 资源清单）
+- **组件映射**（`components.json`）：Component / Instance / Variant 关系梳理
+- **IMAGE fill 原始位图抽取**：通过 `imageRef` 走 `/v1/files/{fileKey}/images` 拿原图，解决大背景图带边框渲染的问题
+
+### Phase 3 — 规划中
+
+- **MCP Server**：让 AI Agent 通过 MCP 工具读取本地缓存的设计上下文
+- **Figma Code Connect**：组件 → 代码映射
 
 ## License
 
