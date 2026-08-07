@@ -81,3 +81,30 @@ def test_source_priority_uses_manifest_screenshot_path() -> None:
     assert "manifest" in source_priority
     assert "screenshot 路径" in source_priority
     assert "通常是 `screenshot.png`" in source_priority
+
+
+def test_input_contract_requires_scope_before_repository_work() -> None:
+    text = (SKILL_DIR / "references/input-contract.md").read_text(encoding="utf-8")
+    assert "Figma URL" in text
+    assert "target directory" in text
+    assert "target page/route" in text
+    assert "approved completed new references" in text
+    assert "initial" in text and "明确为空" in text
+    assert "protected business behavior" in text
+    assert "输入缺失" in text and "不得扫描或修改" in text
+
+
+def test_input_contract_forbids_unbounded_discovery() -> None:
+    text = (SKILL_DIR / "references/input-contract.md").read_text(encoding="utf-8")
+    roles = ("target", "approved_reference", "legacy_behavior_source", "protected", "unknown")
+    assert all(f"`{role}`" in text for role in roles)
+    assert "只有前四类可以影响实现" in text
+    assert "unknown" in text and "澄清或忽略" in text
+    assert "named routes/files" in text
+    assert "direct components" in text
+    assert "approved refs" in text
+    assert "reusable direct dependencies" in text
+    assert "API/store/validation/tests" in text
+    assert "禁止默认遍历全部页面、完整组件库或全部 Git 历史" in text
+    assert "信息满足当前迁移后立即停止" in text
+    assert "具体文件和组件映射" in text and "供确认" in text
