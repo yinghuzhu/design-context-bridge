@@ -16,6 +16,34 @@ figma-context --help
 
 生产运行依赖只有 `requests>=2.31`；pytest 位于 `test` extra，不是运行时依赖。
 
+## 安装 Agent Skill
+
+先用上面的 editable install 安装本仓库，确保 Agent 的执行环境能够直接调用 `figma-context` CLI。然后把仓库内的完整 Skill 安装给 Codex、Claude Code 或两者：
+
+```bash
+# 默认使用绝对符号链接，同时安装到当前用户的 Codex 和 Claude Code 目录
+python scripts/install_skill.py --client both
+
+# 只安装一个客户端
+python scripts/install_skill.py --client codex
+python scripts/install_skill.py --client claude
+
+# 复制完整 Skill 树；适合仓库目录之后可能被移动或删除的情况
+python scripts/install_skill.py --client both --copy
+
+# 测试或自定义安装根目录、Skill 来源
+python scripts/install_skill.py \
+  --home /path/to/disposable-home \
+  --source /path/to/figma-replicate \
+  --client both
+```
+
+Codex 的目标目录是 `~/.agents/skills/figma-replicate`，Claude Code 的目标目录是 `~/.claude/skills/figma-replicate`。默认符号链接指向绝对 source；`--copy` 会复制包括 `references/`、`examples/` 和 `agents/` 在内的完整目录。安装器发现任一目标已存在或是 broken symlink 时会停止且绝不覆盖；安装 `both` 会先检查两个目标，避免只安装一半。
+
+Codex 可显式使用 `$figma-replicate`，也可通过“按这个 Figma URL 复刻页面”等符合 Skill 描述的自然语言请求隐式触发。Claude Code 使用 `/figma-replicate`。调用时应明确目标仓库或目录、目标页面或路由、对应 Figma URL；迁移任务还需明确已批准的新版参考和受保护业务流程。
+
+完整视觉复刻要求 Agent 具备多模态图片理解能力。Agent 无法控制当前浏览器时，可使用外部 Playwright MCP 打开独立浏览器并截图，但独立浏览器可能没有当前登录状态。下载前只通过环境变量提供 Token，例如 `export FIGMA_TOKEN=...`；不要把 Figma Token、密码、Cookie、Authorization header 或其他凭据写入命令参数、日志、Skill、目标仓库或版本控制。
+
 ## Agent 优先的 CLI
 
 ```bash
