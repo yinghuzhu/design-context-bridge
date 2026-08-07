@@ -108,3 +108,62 @@ def test_input_contract_forbids_unbounded_discovery() -> None:
     assert "禁止默认遍历全部页面、完整组件库或全部 Git 历史" in text
     assert "信息满足当前迁移后立即停止" in text
     assert "具体文件和组件映射" in text and "供确认" in text
+
+
+def test_context_reference_uses_json_and_package_statuses() -> None:
+    text = (SKILL_DIR / "references/context-package.md").read_text(
+        encoding="utf-8"
+    )
+    assert "figma-context prepare" in text
+    assert "figma-context validate-package" in text
+    assert "figma-context inspect" in text
+    assert all(status in text for status in ("complete", "partial", "invalid"))
+    assert "FIGMA_TOKEN" in text
+    assert "signed asset URL" in text
+
+
+def test_context_reference_defines_safe_agent_command_order() -> None:
+    text = (SKILL_DIR / "references/context-package.md").read_text(
+        encoding="utf-8"
+    )
+    command_section = text.split("## 命令顺序", 1)[1].split("## 包状态门禁", 1)[0]
+    prepare = command_section.index("figma-context prepare")
+    validate = command_section.index("figma-context validate-package")
+    inspect = command_section.index("figma-context inspect")
+    render = command_section.index("figma-context render")
+    assert prepare < validate < inspect < render
+    assert command_section.count("--json") >= 4
+    assert "--token" not in command_section
+    assert "禁止使用 `--token`" in text
+    assert "data.packageDir" in text
+    assert "status" in text
+    assert "可信输入" in text
+    assert "正确引用" in text
+
+
+def test_context_reference_enforces_status_and_source_gates() -> None:
+    text = (SKILL_DIR / "references/context-package.md").read_text(
+        encoding="utf-8"
+    )
+    assert "retryable" in text and "--force" in text
+    assert "缺失资产不阻止实现" in text
+    assert "视觉验证仍然是强制门禁" in text
+    assert "修改目标项目之前停止" in text
+    assert "根截图" in text and "结构" in text
+    source_order = text.split("## 读取顺序", 1)[1].split("## 安全与能力边界", 1)[0]
+    positions = [
+        source_order.index(name)
+        for name in (
+            "AI_CONTEXT.md",
+            "manifest",
+            "relevant nodes",
+            "assets/",
+            "styles.json",
+            "components.json",
+        )
+    ]
+    assert positions == sorted(positions)
+    assert "完整 `node.json`" in text
+    assert "原始图片 bytes" in text
+    assert "signed asset URL" in text
+    assert "CLI 不具备图片识别能力" in text
