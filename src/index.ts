@@ -26,3 +26,11 @@ export type {
   SourcePrepareOptions,
 } from './sources/types.js';
 export { parseFigmaUrl, supportsFigmaUrl } from './sources/figma/url.js';
+export {
+  FigmaClient,
+  FigmaHttpError,
+  FigmaNetworkError,
+} from './sources/figma/client.js';
+export { normalizeFigmaDocument, safeFigmaRaw } from './sources/figma/normalize.js';
+export { FigmaAdapter } from './sources/figma/adapter.js';
+export type { FigmaClientContract } from './sources/figma/adapter.js';

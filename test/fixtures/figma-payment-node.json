@@ -1,0 +1,38 @@
+{
+  "name": "Payment file",
+  "nodes": {
+    "10:20": {
+      "document": {
+        "id": "10:20",
+        "name": "Payment Result",
+        "type": "FRAME",
+        "absoluteBoundingBox": {"x": 0, "y": 0, "width": 1440, "height": 900},
+        "layoutMode": "VERTICAL",
+        "itemSpacing": 24,
+        "paddingLeft": 32,
+        "paddingRight": 32,
+        "paddingTop": 24,
+        "paddingBottom": 24,
+        "fills": [{"type": "SOLID", "color": {"r": 1, "g": 1, "b": 1, "a": 1}}],
+        "cornerRadius": 12,
+        "effects": [{"type": "DROP_SHADOW", "visible": true, "offset": {"x": 0, "y": 4}, "radius": 16, "spread": 0, "color": {"r": 0, "g": 0, "b": 0, "a": 0.16}}],
+        "children": [
+          {
+            "id": "10:21",
+            "name": "Header",
+            "type": "FRAME",
+            "absoluteBoundingBox": {"x": 32, "y": 24, "width": 1376, "height": 80},
+            "children": [
+              {"id": "10:22", "name": "Title", "type": "TEXT", "characters": "Payment successful", "fills": [{"type": "SOLID", "color": {"r": 0.1, "g": 0.2, "b": 0.3, "a": 1}}], "style": {"fontFamily": "Inter", "fontSize": 20, "fontWeight": 600, "lineHeightPx": 28, "letterSpacing": 0, "textAlignHorizontal": "LEFT"}}
+            ]
+          },
+          {"id": "10:30", "name": "Payment card", "type": "COMPONENT", "componentPropertyDefinitions": {"State": {"type": "VARIANT", "defaultValue": "Success", "variantOptions": ["Success", "Failure"]}}, "children": []},
+          {"id": "10:31", "name": "Payment card / Success", "type": "INSTANCE", "componentId": "10:30", "componentProperties": {"State": {"type": "VARIANT", "value": "Success"}}, "children": []},
+          {"id": "10:40", "name": "Receipt preview", "type": "RECTANGLE", "absoluteBoundingBox": {"x": 32, "y": 300, "width": 480, "height": 320}, "fills": [{"type": "IMAGE", "imageRef": "receipt-image-ref", "scaleMode": "FILL"}]},
+          {"id": "10:41", "name": "Arrow", "type": "VECTOR", "absoluteBoundingBox": {"x": 600, "y": 300, "width": 32, "height": 32}, "fills": [{"type": "GRADIENT_LINEAR", "gradientStops": [{"position": 0, "color": {"r": 1, "g": 0, "b": 0, "a": 1}}, {"position": 1, "color": {"r": 0, "g": 0, "b": 1, "a": 1}}]}], "strokes": [{"type": "SOLID", "color": {"r": 0, "g": 0, "b": 0, "a": 1}}], "strokeWeight": 2},
+          {"id": "10:50", "name": "Hidden note", "type": "TEXT", "visible": false, "characters": "Do not show this text"}
+        ]
+      }
+    }
+  }
+}
