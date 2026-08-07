@@ -47,3 +47,18 @@ export {
 export type { GeneratedContextFiles } from './core/context.js';
 export { PackageRenderError, renderPackage } from './core/renderer.js';
 export type { RenderOptions, RenderResult } from './core/renderer.js';
+export {
+  emptyMigrationState,
+  initializeMigrationState,
+  loadMigrationState,
+  MIGRATION_SCHEMA_VERSION,
+  MIGRATION_STATE_DIRECTORY,
+  MIGRATION_STATE_FILENAME,
+  migrationStatePath,
+  validateMigrationState,
+} from './core/migration.js';
+export type {
+  ApprovedReference,
+  MigrationState,
+  MigrationWriteOperations,
+} from './core/migration.js';
