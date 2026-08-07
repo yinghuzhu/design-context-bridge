@@ -34,3 +34,14 @@ export {
 export { normalizeFigmaDocument, safeFigmaRaw } from './sources/figma/normalize.js';
 export { FigmaAdapter } from './sources/figma/adapter.js';
 export type { FigmaClientContract } from './sources/figma/adapter.js';
+export { preparePackage } from './core/downloader.js';
+export type {
+  PreparePackageOptions,
+  PreparePackageResult,
+} from './core/downloader.js';
+export {
+  extractComponents,
+  extractStyles,
+  generateContextFiles,
+} from './core/context.js';
+export type { GeneratedContextFiles } from './core/context.js';
