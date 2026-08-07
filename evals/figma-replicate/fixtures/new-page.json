@@ -1,7 +1,0 @@
-{
-  "kind": "abstract-eval-fixture",
-  "capabilities": {"multimodal": true, "browser": true},
-  "repository": {"stack": "React", "target": "/offers/summer", "directFiles": ["src/router.tsx", "src/layout/AppShell.tsx", "src/auth/redirect.ts"], "unrelated": ["src/admin", "src/legacy"]},
-  "context": {"package": "complete", "sourceScreenshot": "context/screenshot.png", "viewport": "1440x900"},
-  "simulatedOutcomes": {"visual": "pass-after-iteration", "navigation": "pass", "authRedirect": "pass", "build": "pass"}
-}

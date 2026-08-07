@@ -1,7 +1,0 @@
-{
-  "kind": "abstract-eval-fixture",
-  "capabilities": {"multimodal": true, "browser": true},
-  "repository": {"target": "/payment/result", "migrationState": null, "preExistingMigration": true, "userApprovedReferences": ["/checkout"], "directFiles": ["src/pages/PaymentResult.tsx", "src/pages/Checkout.tsx", "src/api/payment.ts", "src/store/orderPolling.ts"]},
-  "protected": ["payment API", "order status polling"],
-  "simulatedOutcomes": {"visual": "pass", "business": "pass"}
-}

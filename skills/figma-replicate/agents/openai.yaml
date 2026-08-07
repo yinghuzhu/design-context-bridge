@@ -1,4 +1,0 @@
-interface:
-  display_name: "Figma Replicate"
-  short_description: "用多模态 Agent 从 Figma 精确复刻并验证前端页面"
-  default_prompt: "使用 $figma-replicate 按明确范围复刻 Figma 页面并完成视觉与业务验证。"

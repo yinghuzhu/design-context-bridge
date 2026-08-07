@@ -7,12 +7,18 @@
     "node": ">=20"
   },
   "bin": {
-    "design-context": "dist/cli.js"
+    "design-context-bridge": "dist/cli.js",
+    "design-context": "dist/cli.js",
+    "design-replicate-install": "dist/install-skill.js"
   },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./installer": {
+      "types": "./dist/install-skill.d.ts",
+      "import": "./dist/install-skill.js"
     }
   },
   "files": [
@@ -26,7 +32,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "check": "npm run typecheck && npm run lint && npm test && npm run build"
+    "check": "npm run typecheck && npm run lint && npm test && npm run build",
+    "prepack": "npm run build"
   },
   "devDependencies": {
     "@eslint/js": "9.33.0",

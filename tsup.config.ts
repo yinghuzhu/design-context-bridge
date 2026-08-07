@@ -16,4 +16,12 @@ export default defineConfig([
     sourcemap: true,
     target: 'node20',
   },
+  {
+    entry: { 'install-skill': 'scripts/install-skill.ts' },
+    format: ['esm'],
+    banner: { js: '#!/usr/bin/env node' },
+    dts: true,
+    sourcemap: true,
+    target: 'node20',
+  },
 ]);

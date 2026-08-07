@@ -4,7 +4,7 @@ dist/
 coverage/
 *.tgz
 
-# Python prototype (removed after Node release parity)
+# Local development caches
 venv/
 __pycache__/
 *.pyc

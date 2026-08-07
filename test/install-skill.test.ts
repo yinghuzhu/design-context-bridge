@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { installSkill, type InstallOperations } from '../scripts/install-skill.js';
+import { installSkill, main, type InstallOperations } from '../scripts/install-skill.js';
 
 async function sourceSkill(): Promise<string> {
   const source = await mkdtemp(join(tmpdir(), 'design-replicate-source-'));
@@ -82,5 +82,19 @@ describe('installSkill', () => {
     await expect(installSkill(source, home, ['codex', 'claude'], true, operations)).rejects.toThrow(/copy failed/);
     await expect(lstat(join(home, '.agents', 'skills', 'design-replicate'))).rejects.toThrow();
     await expect(lstat(join(home, '.claude', 'skills', 'design-replicate'))).rejects.toThrow();
+  });
+
+  it('exposes a distributable installer CLI', async () => {
+    const source = await sourceSkill();
+    const home = await mkdtemp(join(tmpdir(), 'design-replicate-home-'));
+    let output = '';
+
+    const exit = await main(['--client', 'claude', '--copy', '--home', home, '--source', source], {
+      stderr: (value) => { output += value; },
+    });
+
+    expect(exit).toBe(0);
+    expect(output).toContain(join(home, '.claude', 'skills', 'design-replicate'));
+    await expect(readFile(join(home, '.claude', 'skills', 'design-replicate', 'SKILL.md'), 'utf8')).resolves.toContain('design-replicate');
   });
 });

@@ -1,7 +1,0 @@
-{
-  "kind": "abstract-eval-fixture",
-  "capabilities": {"multimodal": true, "browser": true},
-  "repository": {"target": "/billing/settings", "directFiles": ["src/pages/BillingSettings.tsx", "tests/billing.test.ts"]},
-  "browser": {"ordinaryLogin": "pass", "nextStep": "MFA requiring user identity action"},
-  "simulatedOutcomes": {"visual": "not-run-until-authenticated", "business": "not-run-until-authenticated"}
-}

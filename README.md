@@ -1,158 +1,109 @@
-# figma-context-bridge
+# design-context-bridge
 
-`figma-context-bridge` 把指定 Figma 节点下载为可复用的本地上下文包，供 Codex、Claude Code 等多模态 Agent 在目标仓库中复刻页面。Figma API 访问、资产缓存、上下文提取和辅助 HTML 渲染由确定性的 Core/CLI 完成；视觉理解、截图语义比较、代码实现与业务回归由 Agent 完成。
+`design-context-bridge` 把设计平台节点转换为可缓存、可校验、可供多模态 Codex 和 Claude Code 使用的本地上下文包。确定性的 Node.js CLI 负责下载、归一化、资产缓存和结构校验；Agent 负责图片理解、页面实现、真实浏览器截图差异分析和业务回归。
+
+当前版本内置 Figma adapter，Core、package schema、CLI 与 Skill 均保持 provider-neutral，后续可增加其他设计平台 adapter。
 
 ## 安装
 
-要求 Python 3.10+，下载时需要具有 `File content` 只读权限的 Figma Personal Access Token。
+要求 Node.js 20+：
 
 ```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install -e '.[test]'
+npm install -g design-context-bridge
+design-context --help
+design-replicate-install --client both
+```
+
+也可以不做全局安装：
+
+```bash
+npx design-context-bridge --help
+npx design-context-bridge prepare "$DESIGN_URL" --output .design-context/packages --json
+```
+
+Skill 安装器默认建立绝对符号链接：Codex 使用 `~/.agents/skills/design-replicate`，Claude Code 使用 `~/.claude/skills/design-replicate`。使用 `--client codex` 或 `--client claude` 只安装一端；使用 `--copy` 复制完整 Skill 树。安装器会先检查所有目标，不覆盖目录或 broken symlink，失败只回滚本次创建的路径。
+
+Codex 显式调用 `$design-replicate`，Claude Code 调用 `/design-replicate`；符合 Skill 描述的自然语言也可触发。
+
+## 准备上下文包
+
+Figma adapter 只从环境变量读取 `FIGMA_TOKEN`。Token 不进入参数、日志、JSON、缓存或迁移状态：
+
+```bash
 export FIGMA_TOKEN=figd_xxxxxxxxxxxxxxxxxxxxx
-figma-context --help
-```
 
-生产运行依赖只有 `requests>=2.31`；pytest 位于 `test` extra，不是运行时依赖。
-
-## 安装 Agent Skill
-
-先用上面的 editable install 安装本仓库，确保 Agent 的执行环境能够直接调用 `figma-context` CLI。然后把仓库内的完整 Skill 安装给 Codex、Claude Code 或两者：
-
-```bash
-# 默认使用绝对符号链接，同时安装到当前用户的 Codex 和 Claude Code 目录
-python scripts/install_skill.py --client both
-
-# 只安装一个客户端
-python scripts/install_skill.py --client codex
-python scripts/install_skill.py --client claude
-
-# 复制完整 Skill 树；适合仓库目录之后可能被移动或删除的情况
-python scripts/install_skill.py --client both --copy
-
-# 测试或自定义安装根目录、Skill 来源
-python scripts/install_skill.py \
-  --home /path/to/disposable-home \
-  --source /path/to/figma-replicate \
-  --client both
-```
-
-Codex 的目标目录是 `~/.agents/skills/figma-replicate`，Claude Code 的目标目录是 `~/.claude/skills/figma-replicate`。默认符号链接指向绝对 source；`--copy` 会复制包括 `references/`、`examples/` 和 `agents/` 在内的完整目录。安装器发现任一目标已存在或是 broken symlink 时会停止且绝不覆盖；安装 `both` 会先检查两个目标，避免只安装一半。
-
-Codex 可显式使用 `$figma-replicate`，也可通过“按这个 Figma URL 复刻页面”等符合 Skill 描述的自然语言请求隐式触发。Claude Code 使用 `/figma-replicate`。调用时应明确目标仓库或目录、目标页面或路由、对应 Figma URL；迁移任务还需明确已批准的新版参考和受保护业务流程。
-
-完整视觉复刻要求 Agent 具备多模态图片理解能力。Agent 无法控制当前浏览器时，可使用外部 Playwright MCP 打开独立浏览器并截图，但独立浏览器可能没有当前登录状态。下载前只通过环境变量提供 Token，例如 `export FIGMA_TOKEN=...`；不要把 Figma Token、密码、Cookie、Authorization header 或其他凭据写入命令参数、日志、Skill、目标仓库或版本控制。
-
-## Agent 优先的 CLI
-
-```bash
-# 下载、校验并生成 AI_CONTEXT.md / styles.json / components.json
-figma-context prepare \
+design-context prepare \
   'https://www.figma.com/design/<fileKey>/<title>?node-id=1-2' \
-  --output ./downloads --format png --scale 2 --json
-
-# 强制刷新同一缓存键；旧资产通过 staging + 原子发布清理
-figma-context prepare URL --output ./downloads --force --json
-
-# 以下只读命令都不需要 FIGMA_TOKEN
-figma-context inspect downloads/<fileKey>_1-2 --json
-figma-context validate-package downloads/<fileKey>_1-2 --json
-figma-context status downloads/<fileKey>_1-2 --json
-
-# 生成辅助 HTML，可选并排对比页
-figma-context render downloads/<fileKey>_1-2 \
-  --output /tmp/reconstruct.html --compare --json
-
-# 在目标仓库维护跨会话迁移状态
-figma-context migration init /path/to/target-repo --json
-figma-context migration validate /path/to/target-repo --json
+  --output .design-context/packages \
+  --format png \
+  --scale 2 \
+  --json
 ```
 
-`--json` 模式的 stdout 始终只有一个 JSON 对象，结构稳定为：
+未指定 `--provider` 时 registry 根据 URL 选择 adapter。可显式指定 `--provider figma`；provider 与 URL 不匹配会直接报无效输入。有效 fingerprint 缓存可在没有 Token 时复用，`--force` 重建整个同键包。
 
-```json
-{
-  "ok": true,
-  "command": "status",
-  "status": "complete",
-  "data": {},
-  "diagnostics": []
-}
+只读与辅助命令：
+
+```bash
+design-context validate-package .design-context/packages/<package> --json
+design-context inspect .design-context/packages/<package> --json
+design-context status .design-context/packages/<package> --json
+design-context render .design-context/packages/<package> --compare --json
+
+design-context migration init /path/to/target-repo --json
+design-context migration validate /path/to/target-repo --json
 ```
 
-进度和面向人的提示写入 stderr。退出码契约：
+JSON 模式 stdout 始终只有一个 `{ok, command, status, data, diagnostics}` 对象；面向人的输出写 stderr。退出码：`0` 成功或可用 partial，`20` 无效包，`30` 无效输入，`40` 凭据缺失/鉴权失败，`50` 来源 API/网络失败，`60` 文件系统失败。
 
-| 退出码 | 含义 |
-|---:|---|
-| `0` | `complete`、可用的 `partial`，或命令成功 |
-| `20` | 无效上下文包 |
-| `30` | 无效输入或迁移状态 |
-| `40` | Token 缺失或 Figma 鉴权失败 |
-| `50` | Figma API 或网络失败 |
-| `60` | 文件系统失败 |
-
-## 上下文包
+## 通用 package schema v1
 
 ```text
-downloads/<fileKey>_<nodeId>/
-├── node.json
-├── screenshot.png          # 视觉事实来源，后缀随 --format 改变
-├── manifest.json           # schemaVersion: 2
+<output>/<provider>_<document>_<node>/
+├── manifest.json
+├── design.json
+├── source/raw.json
+├── screenshot.<png|jpg|svg>
 ├── AI_CONTEXT.md
 ├── styles.json
 ├── components.json
-├── reconstruct.html        # 辅助观察，不是实现事实来源
-├── compare.html            # 可选
 ├── README.md
 └── assets/
 ```
 
-包状态有三种：
+- `manifest.json`：provider、来源标识、安全 URL、export 参数、fingerprint、相对路径、资产映射和 diagnostics。
+- `design.json`：Core 使用的规范化节点、几何、文字、样式、组件和资产引用。
+- `source/raw.json`：adapter 清理敏感字段后的平台原始数据。
+- screenshot：视觉真值；实际后缀由 manifest 声明。
+- renderer 输出：只用于辅助观察，不能作为视觉通过证据。
 
-- `complete`：根节点截图和声明的资产完整。
-- `partial`：根节点截图可用，但部分非关键资产失败；诊断包含节点和重试信息，仍返回退出码 `0`，Agent 可以继续工作。
-- `invalid`：缺少根截图、节点数据、schema v2 manifest，或包结构不安全；不能渲染，返回退出码 `20`。
+状态为 `complete`、`partial` 或 `invalid`。根截图/核心 JSON/安全路径失败不会发布；非关键资产失败可发布 partial。下载在同父目录 staging 中完成，校验后原子替换，失败保留旧缓存。
 
-旧版 manifest 没有 `schemaVersion` / `status`，会如实判定为 `invalid`，不会伪装成 schema v2。使用有效 Token 重新执行 `prepare --force` 可生成新包。
+## Agent 工作边界
 
-manifest 不保存 Figma Token 或临时签名资产 URL。下载在 staging 目录完成并校验后原子发布；失败不会覆盖上一份有效缓存。
+完整复刻必须由具备图片理解能力的多模态 Agent 完成。用户或适用项目说明必须明确目标仓库、目标页面/路由和 design-platform URL；迁移任务还要明确已批准新版参考（首次迁移可明确为空）和受保护业务行为。Agent 不扫描全仓猜测新旧页面。
 
-## 多模态 Agent 边界
+推荐流程：
 
-Core/CLI 不包含图片语义识别，不判断“两个页面是否看起来一致”，也不产生视觉相似度分数。完整复刻必须由具备图片理解能力的多模态 Agent 执行：
+1. `design-context prepare`、`validate-package` 和 `inspect`。
+2. 查看 manifest screenshot，再按需定向读取 `design.json`、assets、styles 和 components。
+3. 复用目标仓库既有技术栈和已批准组件，保护 API、路由、状态、校验、错误处理及数据流。
+4. 启动真实应用；优先当前浏览器，无控制能力时使用外部 Playwright MCP 独立浏览器或项目现有浏览器测试。
+5. 多模态 Agent 对比原稿与真实页面截图并迭代，直到无高、中优先级差异。
+6. 任何可能影响交互或业务流程的修改都运行相关验证。视觉通过但业务失败时不得通知人工验收。
+7. 工具门禁全部通过后，才更新 `.design-context/migration.json` 并通知人工验收。
 
-1. 读取 Figma 根截图、`AI_CONTEXT.md`、必要节点和资产。
-2. 根据用户明确指定的目标页面、已批准新版参考页面和受保护业务流程，限界扫描目标仓库。
-3. 实现页面并启动真实运行环境。
-4. 通过现有浏览器、浏览器自动化或 Playwright MCP 截取实际页面。
-5. 由多模态 Agent 比较 Figma 截图和运行截图并迭代；可能影响交互或既有业务时必须执行对应回归验证。
-6. 工具验证通过后再通知人工验收。
+CLI 不进行图片识别、视觉评分或最终验收判断，也不提供自有 MCP/HTTP 服务。
 
-迁移上下文保存在目标仓库的 `.figma-context/migration.json`。Agent 不应随意扫描整个仓库，也不能自行猜测哪些页面属于新版；这些信息必须来自用户、项目说明或用户已确认的迁移状态。
-
-## 旧脚本兼容
-
-已有命令仍可使用，并直接调用同一套 Core API：
+## 开发
 
 ```bash
-# 下载 schema v2 包
-python scripts/figma_download.py URL -o ./downloads --format png --scale 2
-
-# 渲染已有包
-python scripts/render_html.py downloads/<fileKey>_<nodeId> --compare
-
-# 下载或复用缓存、生成上下文、渲染，成功后才打开浏览器
-python scripts/figma_pipeline.py URL --no-open
+npm ci
+npm run check
+npm pack --json --dry-run
 ```
 
-`figma_pipeline.py` 不再通过子进程参数传递 Token。`complete` 和 `partial` 都会继续渲染，`partial` 的缺失资产会打印到 stderr；只有渲染成功后才会尝试打开浏览器。`figma_download.py --no-screenshot` 为弃用兼容参数，schema v2 始终保留根截图。
-
-## 渲染定位
-
-辅助渲染器把文本和基础 Frame/Rectangle 转为 HTML/CSS，把无法可靠转换的矢量或 IMAGE fill 引用为 `assets/` 文件。它适合快速观察结构和生成并排页面，但不能替代多模态 Agent 对真实目标应用截图的验收。
-
-完整需求与技术说明见 [docs/design.md](docs/design.md)，实施设计与计划见 [docs/plans](docs/plans)。
+架构与安全边界见 [docs/design.md](docs/design.md)。Python 可行性原型保存在远程分支 `archive/python-v0.2`；当前版本不提供 Python CLI、旧 schema 或旧状态目录兼容层。
 
 ## License
 

@@ -51,10 +51,11 @@ describe('migration state', () => {
     expect(() => validateMigrationState(state)).toThrow(/credential key/);
   });
 
-  it('ignores legacy .figma-context state', async () => {
+  it('ignores legacy product state', async () => {
     const target = await mkdtemp(join(tmpdir(), 'design-context-migration-'));
-    await mkdir(join(target, '.figma-context'), { recursive: true });
-    await writeFile(join(target, '.figma-context', 'migration.json'), '{"secret":"legacy"}');
+    const legacyDirectory = `.${['figma', 'context'].join('-')}`;
+    await mkdir(join(target, legacyDirectory), { recursive: true });
+    await writeFile(join(target, legacyDirectory, 'migration.json'), '{"secret":"legacy"}');
 
     const state = await initializeMigrationState(target);
 

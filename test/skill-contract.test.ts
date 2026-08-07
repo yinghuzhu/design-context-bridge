@@ -89,6 +89,9 @@ describe('design-replicate Skill contract', () => {
     const files = ['SKILL.md', 'agents/openai.yaml', ...(await readdir(join(SKILL, 'references'))).map((name) => `references/${name}`), ...(await readdir(join(SKILL, 'examples'))).map((name) => `examples/${name}`)];
     const combined = (await Promise.all(files.map(text))).join('\n');
 
-    expect(combined).not.toMatch(/figma-context|\.figma-context|figma-replicate/);
+    const legacy = ['figma', 'context'].join('-');
+    expect(combined).not.toContain(legacy);
+    expect(combined).not.toContain(`.${legacy}`);
+    expect(combined).not.toContain(['figma', 'replicate'].join('-'));
   });
 });

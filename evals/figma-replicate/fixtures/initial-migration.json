@@ -1,7 +1,0 @@
-{
-  "kind": "abstract-eval-fixture",
-  "capabilities": {"multimodal": true, "browser": true},
-  "repository": {"target": "/account/profile", "legacyFiles": ["src/pages/Profile.tsx", "src/api/profile.ts", "src/auth/redirect.ts"], "approvedReferences": []},
-  "protected": ["profile read/write API", "form validation", "expired-login redirect"],
-  "simulatedOutcomes": {"visual": "pass-after-iteration", "business": "pass"}
-}

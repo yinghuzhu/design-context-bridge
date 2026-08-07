@@ -1,2 +1,0 @@
-# Runtime dependency only. Install test tools with: pip install -e '.[test]'
-requests>=2.31

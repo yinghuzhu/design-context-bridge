@@ -6,9 +6,6 @@ export default tseslint.config(
     ignores: [
       'dist/**',
       'node_modules/**',
-      'src/figma_context_bridge/**',
-      'scripts/*.py',
-      'tests/**',
       'venv/**',
     ],
   },
