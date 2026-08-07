@@ -1,10 +1,18 @@
-# Python
+# Node.js
+node_modules/
+dist/
+coverage/
+*.tgz
+
+# Python prototype (removed after Node release parity)
 venv/
 __pycache__/
 *.pyc
+.pytest_cache/
 
-# Downloads (private design data — don't commit)
+# Private design data and target-repository state
 downloads/
+.design-context/
 
 # OS / editor
 .DS_Store
