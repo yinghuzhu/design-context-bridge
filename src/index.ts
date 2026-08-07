@@ -45,3 +45,5 @@ export {
   generateContextFiles,
 } from './core/context.js';
 export type { GeneratedContextFiles } from './core/context.js';
+export { PackageRenderError, renderPackage } from './core/renderer.js';
+export type { RenderOptions, RenderResult } from './core/renderer.js';
