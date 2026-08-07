@@ -1,0 +1,16 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Downloads (private design data — don't commit)
+downloads/
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Temp screenshots
+reconstruct-full.png
