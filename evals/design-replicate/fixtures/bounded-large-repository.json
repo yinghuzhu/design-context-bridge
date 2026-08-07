@@ -1,0 +1,6 @@
+{
+  "kind": "abstract-eval-fixture",
+  "capabilities": {"multimodal": true, "browser": true},
+  "repository": {"large": true, "target": "/payment/result", "approvedReferences": ["/checkout"], "allowedClosure": ["src/routes/payment.ts", "src/pages/PaymentResult.tsx", "src/pages/Checkout.tsx", "src/api/payment.ts", "tests/payment-result.test.ts"], "unrelatedDirectories": ["apps/data-warehouse", "apps/internal-admin", "packages/unused-design-system", "vendor", "node_modules", ".git"]},
+  "simulatedOutcomes": {"visual": "pass", "business": "pass"}
+}

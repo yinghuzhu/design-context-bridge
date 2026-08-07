@@ -1,0 +1,7 @@
+{
+  "kind": "abstract-eval-fixture",
+  "capabilities": {"multimodal": true},
+  "repository": {"path": "project", "large": true, "mustRemainUnread": true},
+  "preconditions": ["No target directory is confirmed", "No target page or route is confirmed", "No design-platform URL is supplied"],
+  "simulatedOutcomes": {}
+}

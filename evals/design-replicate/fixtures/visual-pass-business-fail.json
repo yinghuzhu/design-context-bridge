@@ -1,0 +1,8 @@
+{
+  "kind": "abstract-eval-fixture",
+  "capabilities": {"multimodal": true, "browser": true},
+  "repository": {"target": "/payment/result", "directFiles": ["src/pages/PaymentResult.tsx", "src/api/payment.ts", "src/store/orderPolling.ts", "tests/payment-result.test.ts"]},
+  "protected": ["payment API", "order polling"],
+  "evidence": {"visual": "no high or medium differences", "business": "payment-result regression test fails because request payload changed"},
+  "simulatedOutcomes": {"visual": "pass", "business": "fail"}
+}

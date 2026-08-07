@@ -1,0 +1,8 @@
+{
+  "kind": "abstract-eval-fixture",
+  "provider": "figma",
+  "designUrl": "https://www.figma.com/design/EVAL/Provider?node-id=900-901",
+  "capabilities": {"multimodal": true, "designContextCli": true},
+  "repository": {"path": "project", "target": "/provider-demo", "mustRemainUnread": true},
+  "context": {"cache": "miss", "adapter": "figma", "credentialEnvironment": "FIGMA_TOKEN", "prepare": "complete"}
+}
