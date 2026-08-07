@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from figma_context_bridge.cli import main
 from figma_context_bridge.models import FigmaTarget, PackageStatus
 from figma_context_bridge.package import (
     PackagePaths,
@@ -27,7 +28,8 @@ def write_package(
     package_dir.mkdir(parents=True)
     (package_dir / "assets").mkdir()
     (package_dir / "node.json").write_text(
-        '{"nodes":{"1:2":{"document":{"id":"1:2","type":"FRAME",'
+        '{"nodes":{"1:2":{"document":{"id":"1:2","name":"Minimal",'
+        '"type":"FRAME",'
         '"absoluteBoundingBox":{"x":0,"y":0,"width":10,"height":10}}}}}',
         encoding="utf-8",
     )
@@ -36,6 +38,20 @@ def write_package(
         json.dumps(
             {
                 "schemaVersion": 2,
+                "source": {
+                    "url": "https://www.figma.com/design/file/Page?node-id=1-2",
+                    "fileKey": "file",
+                    "nodeId": "1:2",
+                },
+                "root": {
+                    "name": "Minimal",
+                    "type": "FRAME",
+                    "totalNodes": 1,
+                },
+                "export": {"format": "png", "scale": 2},
+                "fingerprint": build_fingerprint(
+                    FigmaTarget("file", "1:2"), "png", 2
+                ),
                 "status": status,
                 "screenshot": screenshot,
                 "files": files or {},
@@ -72,6 +88,120 @@ def test_checked_in_minimal_package_fixture_is_complete() -> None:
     result = validate_package(FIXTURES / "minimal-package")
     assert result.status is PackageStatus.COMPLETE
     assert result.diagnostics == ()
+
+
+def test_checked_in_minimal_package_fixture_renders_through_cli(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    output = tmp_path / "minimal.html"
+
+    exit_code = main(
+        [
+            "render",
+            str(FIXTURES / "minimal-package"),
+            "--output",
+            str(output),
+            "--json",
+        ]
+    )
+
+    assert exit_code == 0
+    assert output.is_file()
+    assert json.loads(capsys.readouterr().out)["ok"] is True
+
+
+@pytest.mark.parametrize("field", ["source", "root", "export", "fingerprint"])
+def test_missing_required_v2_manifest_section_is_invalid(
+    tmp_path: Path, field: str
+) -> None:
+    package_dir = tmp_path / "package"
+    write_package(package_dir)
+    manifest_path = package_dir / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    del manifest[field]
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    result = validate_package(package_dir)
+
+    assert result.status is PackageStatus.INVALID
+    assert "malformed_manifest" in {item.code for item in result.diagnostics}
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        (
+            "source",
+            {"url": "", "fileKey": "file", "nodeId": "1:2"},
+        ),
+        (
+            "root",
+            {"name": "", "type": "FRAME", "totalNodes": 1},
+        ),
+        ("export", {"format": "png", "scale": 0}),
+        ("fingerprint", "not-a-sha256-fingerprint"),
+    ],
+)
+def test_malformed_required_v2_manifest_section_is_invalid(
+    tmp_path: Path, field: str, value: object
+) -> None:
+    package_dir = tmp_path / "package"
+    write_package(package_dir)
+    manifest_path = package_dir / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest[field] = value
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    result = validate_package(package_dir)
+
+    assert result.status is PackageStatus.INVALID
+    assert "malformed_manifest" in {item.code for item in result.diagnostics}
+
+
+@pytest.mark.parametrize(
+    ("source_node_id", "node_key"),
+    [("1-2", "1:2"), ("1:2", "1-2")],
+)
+def test_source_node_id_accepts_colon_or_dash_node_key(
+    tmp_path: Path, source_node_id: str, node_key: str
+) -> None:
+    package_dir = tmp_path / "package"
+    write_package(package_dir)
+    manifest_path = package_dir / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["source"]["nodeId"] = source_node_id
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    node_path = package_dir / "node.json"
+    node_data = json.loads(node_path.read_text(encoding="utf-8"))
+    node_data["nodes"][node_key] = node_data["nodes"].pop("1:2")
+    node_path.write_text(json.dumps(node_data), encoding="utf-8")
+
+    assert validate_package(package_dir).status is PackageStatus.COMPLETE
+
+
+def test_source_node_must_select_a_document(tmp_path: Path) -> None:
+    package_dir = tmp_path / "package"
+    write_package(package_dir)
+    manifest_path = package_dir / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["source"]["nodeId"] = "9:9"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    result = validate_package(package_dir)
+
+    assert result.status is PackageStatus.INVALID
+    assert "missing_source_node" in {item.code for item in result.diagnostics}
+
+
+def test_package_validation_does_not_require_render_bounds(tmp_path: Path) -> None:
+    package_dir = tmp_path / "package"
+    write_package(package_dir)
+    node_path = package_dir / "node.json"
+    node_data = json.loads(node_path.read_text(encoding="utf-8"))
+    del node_data["nodes"]["1:2"]["document"]["absoluteBoundingBox"]
+    node_path.write_text(json.dumps(node_data), encoding="utf-8")
+
+    assert validate_package(package_dir).status is PackageStatus.COMPLETE
 
 
 def test_screenshot_path_comes_from_manifest(tmp_path: Path) -> None:
@@ -188,6 +318,7 @@ def test_validation_reports_every_missing_required_file(tmp_path: Path) -> None:
 
     assert result.status is PackageStatus.INVALID
     assert {item.code for item in result.diagnostics} == {
+        "malformed_manifest",
         "missing_node",
         "missing_screenshot",
     }

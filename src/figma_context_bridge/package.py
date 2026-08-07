@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import uuid
 from dataclasses import dataclass
@@ -52,7 +53,7 @@ def validate_package(package_dir: Path) -> PackageValidation:
     package_dir = Path(package_dir)
     diagnostics: list[Diagnostic] = []
     manifest = _load_manifest(package_dir / "manifest.json", diagnostics)
-    _load_node(package_dir / "node.json", diagnostics)
+    node_data = _load_node(package_dir / "node.json", diagnostics)
 
     declared_status: PackageStatus | None = None
     manifest_diagnostics: tuple[Diagnostic, ...] = ()
@@ -70,9 +71,10 @@ def validate_package(package_dir: Path) -> PackageValidation:
             )
 
         declared_status = _parse_status(manifest, diagnostics)
-        asset_diagnostics = _validate_files(
-            package_dir, manifest, diagnostics
-        )
+        source_node_id = _validate_v2_manifest(manifest, diagnostics)
+        if source_node_id is not None and node_data is not None:
+            _validate_source_node(node_data, source_node_id, diagnostics)
+        asset_diagnostics = _validate_files(package_dir, manifest, diagnostics)
         manifest_diagnostics = _parse_manifest_diagnostics(manifest, diagnostics)
         _validate_screenshot(package_dir, manifest, diagnostics)
 
@@ -175,7 +177,9 @@ def _load_manifest(
     return value
 
 
-def _load_node(node_path: Path, diagnostics: list[Diagnostic]) -> None:
+def _load_node(
+    node_path: Path, diagnostics: list[Diagnostic]
+) -> dict[str, Any] | None:
     if not node_path.is_file():
         diagnostics.append(
             Diagnostic(
@@ -183,7 +187,7 @@ def _load_node(node_path: Path, diagnostics: list[Diagnostic]) -> None:
                 message="required file node.json is missing",
             )
         )
-        return
+        return None
 
     try:
         value = json.loads(node_path.read_text(encoding="utf-8"))
@@ -194,7 +198,7 @@ def _load_node(node_path: Path, diagnostics: list[Diagnostic]) -> None:
                 message="node.json is not valid UTF-8 JSON",
             )
         )
-        return
+        return None
 
     if not isinstance(value, dict):
         diagnostics.append(
@@ -203,6 +207,119 @@ def _load_node(node_path: Path, diagnostics: list[Diagnostic]) -> None:
                 message="node.json must contain a JSON object",
             )
         )
+        return None
+    return value
+
+
+def _validate_v2_manifest(
+    manifest: dict[str, Any], diagnostics: list[Diagnostic]
+) -> str | None:
+    source_node_id = _validate_source(manifest.get("source"), diagnostics)
+    _validate_root(manifest.get("root"), diagnostics)
+    _validate_export(manifest.get("export"), diagnostics)
+    _validate_fingerprint(manifest.get("fingerprint"), diagnostics)
+    return source_node_id
+
+
+def _validate_source(
+    value: Any, diagnostics: list[Diagnostic]
+) -> str | None:
+    if not isinstance(value, dict):
+        _malformed_manifest(diagnostics, "manifest source must be an object")
+        return None
+
+    invalid = False
+    for field_name in ("url", "fileKey", "nodeId"):
+        field_value = value.get(field_name)
+        if not isinstance(field_value, str) or not field_value.strip():
+            _malformed_manifest(
+                diagnostics,
+                f"manifest source.{field_name} must be a non-empty string",
+            )
+            invalid = True
+    if invalid:
+        return None
+    return value["nodeId"]
+
+
+def _validate_root(value: Any, diagnostics: list[Diagnostic]) -> None:
+    if not isinstance(value, dict):
+        _malformed_manifest(diagnostics, "manifest root must be an object")
+        return
+
+    for field_name in ("name", "type"):
+        field_value = value.get(field_name)
+        if not isinstance(field_value, str) or not field_value.strip():
+            _malformed_manifest(
+                diagnostics,
+                f"manifest root.{field_name} must be a non-empty string",
+            )
+    total_nodes = value.get("totalNodes")
+    if (
+        isinstance(total_nodes, bool)
+        or not isinstance(total_nodes, int)
+        or total_nodes < 1
+    ):
+        _malformed_manifest(
+            diagnostics, "manifest root.totalNodes must be a positive integer"
+        )
+
+
+def _validate_export(value: Any, diagnostics: list[Diagnostic]) -> None:
+    if not isinstance(value, dict):
+        _malformed_manifest(diagnostics, "manifest export must be an object")
+        return
+
+    fmt = value.get("format")
+    if fmt not in {"png", "jpg", "svg"}:
+        _malformed_manifest(
+            diagnostics, "manifest export.format must be png, jpg, or svg"
+        )
+    scale = value.get("scale")
+    if isinstance(scale, bool) or not isinstance(scale, int) or scale < 1:
+        _malformed_manifest(
+            diagnostics, "manifest export.scale must be a positive integer"
+        )
+
+
+def _validate_fingerprint(value: Any, diagnostics: list[Diagnostic]) -> None:
+    if not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{64}", value) is None:
+        _malformed_manifest(
+            diagnostics,
+            "manifest fingerprint must be a lowercase SHA-256 hex digest",
+        )
+
+
+def _validate_source_node(
+    node_data: dict[str, Any],
+    node_id: str,
+    diagnostics: list[Diagnostic],
+) -> None:
+    nodes = node_data.get("nodes")
+    if isinstance(nodes, dict):
+        candidates = (
+            node_id,
+            node_id.replace("-", ":"),
+            node_id.replace(":", "-"),
+        )
+        for candidate in candidates:
+            entry = nodes.get(candidate)
+            document = entry.get("document") if isinstance(entry, dict) else None
+            if isinstance(document, dict):
+                return
+    diagnostics.append(
+        Diagnostic(
+            code="missing_source_node",
+            message=f"node.json is missing selected document {node_id}",
+            node_id=node_id,
+        )
+    )
+
+
+def _malformed_manifest(
+    diagnostics: list[Diagnostic], message: str
+) -> None:
+    diagnostics.append(Diagnostic(code="malformed_manifest", message=message))
 
 
 def _parse_status(

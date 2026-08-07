@@ -3,6 +3,7 @@
     "1:2": {
       "document": {
         "id": "1:2",
+        "name": "Minimal",
         "type": "FRAME",
         "absoluteBoundingBox": {
           "x": 0,

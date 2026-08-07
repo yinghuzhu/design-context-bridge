@@ -106,7 +106,21 @@ def make_package(
             {
                 "schemaVersion": 2,
                 "status": "complete",
-                "source": {"fileKey": "file", "nodeId": "10:20"},
+                "source": {
+                    "url": "https://www.figma.com/design/file/Page?node-id=10-20",
+                    "fileKey": "file",
+                    "nodeId": "10:20",
+                },
+                "root": {
+                    "name": 'Payment <Result> & "Receipt"',
+                    "type": "FRAME",
+                    "totalNodes": 5,
+                },
+                "export": {"format": "png", "scale": 2},
+                "fingerprint": (
+                    "8f65b8562a93ac5ee88f0d16a380f886"
+                    "84eec1c3d03840d28389882b214b1126"
+                ),
                 "screenshot": screenshot,
                 "files": {
                     "10:23": {
@@ -166,7 +180,7 @@ def test_missing_manifest_raises_typed_package_error(tmp_path: Path) -> None:
 def test_empty_nodes_raises_typed_package_error(tmp_path: Path) -> None:
     package_dir = make_package(tmp_path, nodes={})
 
-    with pytest.raises(PackageRenderError, match="non-empty nodes"):
+    with pytest.raises(PackageRenderError, match="missing_source_node"):
         render_package(package_dir)
 
 
