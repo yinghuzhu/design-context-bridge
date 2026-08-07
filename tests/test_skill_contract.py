@@ -167,3 +167,54 @@ def test_context_reference_enforces_status_and_source_gates() -> None:
     assert "原始图片 bytes" in text
     assert "signed asset URL" in text
     assert "CLI 不具备图片识别能力" in text
+
+
+def test_migration_reference_requires_modes_and_user_approval() -> None:
+    text = (SKILL_DIR / "references/migration.md").read_text(encoding="utf-8")
+    assert all(
+        f"`{mode}`" in text
+        for mode in ("new", "initial", "continuation", "adoption")
+    )
+    assert "approvedByUser" in text
+    assert "新会话不等于新迁移" in text
+    assert "figma-context migration validate" in text
+    assert "项目说明" in text and "用户裁决" in text
+    assert "密码" in text and "Token" in text and "Cookie" in text
+
+
+def test_migration_reference_defines_fact_based_state_transitions() -> None:
+    text = (SKILL_DIR / "references/migration.md").read_text(encoding="utf-8")
+    assert "approved_reference" in text and "approvedByUser" in text
+    assert "implemented" in text
+    assert "validated" in text
+    assert "visualEvidence" in text and "businessEvidence" in text
+    assert "schemaVersion" in text and "schema v1" in text
+    assert "不得自动判定" in text
+
+
+def test_migration_examples_are_bounded_and_complete() -> None:
+    example_names = ("initial-migration", "continuation", "adoption")
+    required_sections = (
+        "## User prompt",
+        "## Accepted mapping",
+        "## Allowed files",
+        "## Forbidden scope expansion",
+        "## State changes",
+        "## Evidence",
+        "## Expected final report",
+    )
+
+    for name in example_names:
+        text = (SKILL_DIR / f"examples/{name}.md").read_text(encoding="utf-8")
+        assert all(section in text for section in required_sections)
+
+    initial = (SKILL_DIR / "examples/initial-migration.md").read_text(
+        encoding="utf-8"
+    )
+    assert "approvedReferences" in initial and "[]" in initial
+
+    adoption = (SKILL_DIR / "examples/adoption.md").read_text(encoding="utf-8")
+    assert "/checkout" in adoption and "approved_reference" in adoption
+    assert "/payment/result" in adoption and "target" in adoption
+    assert "支付 API" in adoption and "订单状态轮询" in adoption
+    assert "不检查无关页面" in adoption
