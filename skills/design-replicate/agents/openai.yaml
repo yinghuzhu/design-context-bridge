@@ -1,0 +1,4 @@
+interface:
+  display_name: "Design Replicate"
+  short_description: "从设计平台上下文完整实现前端页面并完成多模态视觉与业务验证"
+  default_prompt: "Use $design-replicate to implement the specified design-platform page in the target repository and validate it with source and actual screenshots."
