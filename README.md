@@ -1,198 +1,130 @@
 # figma-context-bridge
 
-一个最小可用的 Figma 设计稿下载与还原工具：给定一个 Figma URL，一键下载设计稿的节点结构 JSON、整页截图、所有图片素材，并自动还原为可直接使用的前端 HTML 页面。
+`figma-context-bridge` 把指定 Figma 节点下载为可复用的本地上下文包，供 Codex、Claude Code 等多模态 Agent 在目标仓库中复刻页面。Figma API 访问、资产缓存、上下文提取和辅助 HTML 渲染由确定性的 Core/CLI 完成；视觉理解、截图语义比较、代码实现与业务回归由 Agent 完成。
 
-解决的核心痛点：**Figma MCP 调用次数限制 + 多 Agent 重复读取设计稿**。导出一次后，所有 AI Agent 直接读本地文件，不再触碰 Figma API。
+## 安装
 
-## 快速开始
+要求 Python 3.10+，下载时需要具有 `File content` 只读权限的 Figma Personal Access Token。
 
 ```bash
-# 1. 克隆 + 安装
-git clone git@github.com:yinghuzhu/figma-context-bridge.git
-cd figma-context-bridge
-python3 -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-
-# 2. 设置 Figma Token（见下方说明）
+python3 -m venv venv
+source venv/bin/activate
+pip install -e '.[test]'
 export FIGMA_TOKEN=figd_xxxxxxxxxxxxxxxxxxxxx
-
-# 3. 一键下载 + 还原（自动打开浏览器）
-python scripts/figma_pipeline.py "https://www.figma.com/design/<fileKey>/<title>?node-id=1:2"
+figma-context --help
 ```
 
-浏览器会打开还原后的 HTML 页面，可直接作为前端页面使用。
+生产运行依赖只有 `requests>=2.31`；pytest 位于 `test` extra，不是运行时依赖。
 
-## 前置条件
-
-| 条件 | 说明 |
-|------|------|
-| Python | 3.10+ |
-| Figma 账号 | 需要 **Personal Access Token**（免费版即可） |
-| 网络 | 能访问 `api.figma.com` |
-
-## 获取 Figma Token
-
-1. 登录 Figma → 点击头像 → **Settings**
-2. 找到 **Personal access tokens** 区域
-3. 输入名称 → 勾选 `File content`（只读）→ 生成
-4. 复制 token（形如 `figd_xxx`），设置环境变量：
+## Agent 优先的 CLI
 
 ```bash
-export FIGMA_TOKEN=figd_xxxxxxxxxxxxxxxxxxxxx
+# 下载、校验并生成 AI_CONTEXT.md / styles.json / components.json
+figma-context prepare \
+  'https://www.figma.com/design/<fileKey>/<title>?node-id=1-2' \
+  --output ./downloads --format png --scale 2 --json
+
+# 强制刷新同一缓存键；旧资产通过 staging + 原子发布清理
+figma-context prepare URL --output ./downloads --force --json
+
+# 以下只读命令都不需要 FIGMA_TOKEN
+figma-context inspect downloads/<fileKey>_1-2 --json
+figma-context validate-package downloads/<fileKey>_1-2 --json
+figma-context status downloads/<fileKey>_1-2 --json
+
+# 生成辅助 HTML，可选并排对比页
+figma-context render downloads/<fileKey>_1-2 \
+  --output /tmp/reconstruct.html --compare --json
+
+# 在目标仓库维护跨会话迁移状态
+figma-context migration init /path/to/target-repo --json
+figma-context migration validate /path/to/target-repo --json
 ```
 
-## 使用方式
+`--json` 模式的 stdout 始终只有一个 JSON 对象，结构稳定为：
 
-### 一站式（推荐）
+```json
+{
+  "ok": true,
+  "command": "status",
+  "status": "complete",
+  "data": {},
+  "diagnostics": []
+}
+```
+
+进度和面向人的提示写入 stderr。退出码契约：
+
+| 退出码 | 含义 |
+|---:|---|
+| `0` | `complete`、可用的 `partial`，或命令成功 |
+| `20` | 无效上下文包 |
+| `30` | 无效输入或迁移状态 |
+| `40` | Token 缺失或 Figma 鉴权失败 |
+| `50` | Figma API 或网络失败 |
+| `60` | 文件系统失败 |
+
+## 上下文包
+
+```text
+downloads/<fileKey>_<nodeId>/
+├── node.json
+├── screenshot.png          # 视觉事实来源，后缀随 --format 改变
+├── manifest.json           # schemaVersion: 2
+├── AI_CONTEXT.md
+├── styles.json
+├── components.json
+├── reconstruct.html        # 辅助观察，不是实现事实来源
+├── compare.html            # 可选
+├── README.md
+└── assets/
+```
+
+包状态有三种：
+
+- `complete`：根节点截图和声明的资产完整。
+- `partial`：根节点截图可用，但部分非关键资产失败；诊断包含节点和重试信息，仍返回退出码 `0`，Agent 可以继续工作。
+- `invalid`：缺少根截图、节点数据、schema v2 manifest，或包结构不安全；不能渲染，返回退出码 `20`。
+
+旧版 manifest 没有 `schemaVersion` / `status`，会如实判定为 `invalid`，不会伪装成 schema v2。使用有效 Token 重新执行 `prepare --force` 可生成新包。
+
+manifest 不保存 Figma Token 或临时签名资产 URL。下载在 staging 目录完成并校验后原子发布；失败不会覆盖上一份有效缓存。
+
+## 多模态 Agent 边界
+
+Core/CLI 不包含图片语义识别，不判断“两个页面是否看起来一致”，也不产生视觉相似度分数。完整复刻必须由具备图片理解能力的多模态 Agent 执行：
+
+1. 读取 Figma 根截图、`AI_CONTEXT.md`、必要节点和资产。
+2. 根据用户明确指定的目标页面、已批准新版参考页面和受保护业务流程，限界扫描目标仓库。
+3. 实现页面并启动真实运行环境。
+4. 通过现有浏览器、浏览器自动化或 Playwright MCP 截取实际页面。
+5. 由多模态 Agent 比较 Figma 截图和运行截图并迭代；可能影响交互或既有业务时必须执行对应回归验证。
+6. 工具验证通过后再通知人工验收。
+
+迁移上下文保存在目标仓库的 `.figma-context/migration.json`。Agent 不应随意扫描整个仓库，也不能自行猜测哪些页面属于新版；这些信息必须来自用户、项目说明或用户已确认的迁移状态。
+
+## 旧脚本兼容
+
+已有命令仍可使用，并直接调用同一套 Core API：
 
 ```bash
-# 下载 + 还原 + 打开浏览器
-python scripts/figma_pipeline.py "https://www.figma.com/design/<fileKey>/<title>?node-id=1:2"
+# 下载 schema v2 包
+python scripts/figma_download.py URL -o ./downloads --format png --scale 2
 
-# 再次运行同一 URL：跳过下载，仅重新渲染（不消耗 API 配额）
-python scripts/figma_pipeline.py URL
+# 渲染已有包
+python scripts/render_html.py downloads/<fileKey>_<nodeId> --compare
 
-# 设计稿有更新，强制重新下载
-python scripts/figma_pipeline.py URL --force
-
-# 导出 SVG（矢量零损失，图标更清晰）
-python scripts/figma_pipeline.py URL --format svg
-
-# 不自动打开浏览器
+# 下载或复用缓存、生成上下文、渲染，成功后才打开浏览器
 python scripts/figma_pipeline.py URL --no-open
 ```
 
-### 分步使用
+`figma_pipeline.py` 不再通过子进程参数传递 Token。`complete` 和 `partial` 都会继续渲染，`partial` 的缺失资产会打印到 stderr；只有渲染成功后才会尝试打开浏览器。`figma_download.py --no-screenshot` 为弃用兼容参数，schema v2 始终保留根截图。
 
-```bash
-# 只下载资产包（不渲染 HTML）
-python scripts/figma_download.py URL -o ./my-output --format png --scale 2
+## 渲染定位
 
-# 只把已有资产包渲染成 HTML
-python scripts/render_html.py downloads/<fileKey>_<nodeId>/
+辅助渲染器把文本和基础 Frame/Rectangle 转为 HTML/CSS，把无法可靠转换的矢量或 IMAGE fill 引用为 `assets/` 文件。它适合快速观察结构和生成并排页面，但不能替代多模态 Agent 对真实目标应用截图的验收。
 
-# 生成对比页面（还原效果 vs 原稿截图 并排）
-python scripts/render_html.py downloads/<fileKey>_<nodeId>/ --compare
-```
-
-### 参数参考
-
-**figma_pipeline.py（编排器）**
-
-| 参数 | 说明 |
-|------|------|
-| `url` | Figma 设计稿 URL（必须含 `?node-id=`） |
-| `-o / --out` | 输出根目录，默认 `./downloads/` |
-| `-t / --token` | Figma token，默认读 `$FIGMA_TOKEN` |
-| `-f / --force` | 强制重新下载，忽略本地缓存 |
-| `--no-open` | 不自动打开浏览器 |
-| `--no-compare` | 不生成 `compare.html` 对比页 |
-| `--format` | `png` / `jpg` / `svg`，默认 `png` |
-| `--scale` | 导出倍率，默认 `2` |
-
-**figma_download.py（下载器）**
-
-| 参数 | 说明 |
-|------|------|
-| `url` | Figma URL |
-| `-o / --out` | 输出根目录 |
-| `-t / --token` | Figma token |
-| `--format` | `png` / `jpg` / `svg` |
-| `--scale` | 导出倍率 |
-| `--no-screenshot` | 不下载整页截图 |
-
-**render_html.py（渲染器）**
-
-| 参数 | 说明 |
-|------|------|
-| `package_dir` | 资产包目录路径 |
-| `-o / --output` | 输出 HTML 路径 |
-| `--compare` | 额外生成 `compare.html`（含原稿截图对比） |
-
-## 输出结构
-
-每次下载 + 渲染后生成：
-
-```
-downloads/<fileKey>_<nodeId>/
-├── node.json              # 完整 Figma 节点树（布局、文字、样式、组件结构）
-├── screenshot.png         # 根节点整页截图（视觉还原的金标准）
-├── manifest.json          # node id → 资源文件路径映射
-├── reconstruct.html       # ← 还原后的前端页面（可直接使用）
-├── compare.html           # 还原效果 vs 原稿截图 并排对比（可选）
-├── README.md              # 该资产包的元信息
-└── assets/                # 所有图片素材
-    ├── 001_root_1-2.png
-    ├── 002_logo_2-7.png
-    └── ...
-```
-
-**`reconstruct.html`** 是纯净的前端页面，无调试 UI，可直接用于：
-- 作为前端开发的基础页面
-- 交给 AI Agent 作为设计还原的参考
-- 视觉走查和设计评审
-
-**`compare.html`** 是并排对比页（左还原 / 右原稿），仅用于自查还原效果。
-
-## 渲染策略
-
-`render_html.py` 递归遍历 `node.json`，按节点类型决定渲染方式：
-
-| Figma 节点类型 | HTML 渲染方式 |
-|---|---|
-| `TEXT` | 真文字 `<div>`（字号、字重、行高、颜色、对齐全部从 Figma 翻译） |
-| `FRAME` / `RECTANGLE` | CSS `<div>`（fills、strokes、cornerRadius、box-shadow、overflow） |
-| `GROUP` | 透明容器（子节点直接展开到父级） |
-| `VECTOR` / `LINE` / `ELLIPSE` | `<img>` PNG（矢量图形无法用 HTML/CSS 还原路径） |
-| `RECTANGLE` (IMAGE fill) | `<img>` PNG（位图素材） |
-
-**坐标系统**：每个节点的 `left/top` 相对于它的直接父节点计算（与 CSS `position:absolute` 的定位上下文一致）。
-
-**blendMode 处理**：
-- 节点级 `PASS_THROUGH` → `<img>` 添加 `mix-blend-mode: multiply`（白色变透明，不遮盖下层）
-- Fill 级 `MULTIPLY` + 白色 → 跳过（白色 MULTIPLY 是无效果操作）
-
-## 工具架构
-
-```
-scripts/
-├── figma_download.py    # 底层：URL → 资产包（Figma API 调用、图片下载）
-├── render_html.py       # 底层：资产包 → reconstruct.html（JSON → HTML 翻译）
-└── figma_pipeline.py    # 编排器：URL → 检测缓存 → 下载 + 渲染 + 打开浏览器
-```
-
-**为什么分三个脚本**：资产包是设计上下文的持久化沉淀，必须可独立复用。渲染策略调整、AI_CONTEXT 生成、Design Token 抽取都不该触发 Figma API 重调。编排器带本地缓存——同一 URL 第二次运行只渲染不下载。
-
-## 已知限制
-
-- **矢量图形**：`VECTOR` / `LINE` / `ELLIPSE` 等用 PNG 还原（node.json 不含矢量路径数据）。需要零损失矢量还原则用 `--format svg` 导出 SVG。
-- **字体回退**：Figma 设计稿使用的字体（如 `AC Nord Text`）在本地可能未安装，会回退到系统字体，可能导致文字宽度有偏差。
-- **cornerSmoothing**：Figma 的 Apple squircle 圆角（cornerSmoothing > 0）CSS 无法完美复现，用普通 `border-radius` 近似。
-- **复杂 blendMode**：`BACKGROUND_BLUR` 大半径受浏览器 `backdrop-filter` 上限限制；`LINEAR_DODGE` / `OVERLAY` 等混合模式只能近似。
-- **增量更新**：每次下载为全量拉取，不做增量 diff。
-
-## 后续路线
-
-> 完整的需求与技术说明书见 [docs/design.md](docs/design.md)。
-
-### Phase 1 ✅ 已完成
-
-- URL 解析 + 节点树导出 + 图片批量下载
-- HTML 页面自动还原（reconstruct.html）
-- 本地缓存 + 编排器（figma_pipeline.py）
-- blendMode 处理 + 相对坐标系
-
-### Phase 2 — 规划中
-
-- **Design Token 提取**（`styles.json`）：Color / Typography / Spacing / Radius / Shadow 从 node.json 自动归类
-- **AI_CONTEXT.md 自动生成**：将 node.json 压缩为 AI Agent 直接可读的结构化 Markdown（页面摘要 + 组件说明 + 样式规范 + 资源清单）
-- **组件映射**（`components.json`）：Component / Instance / Variant 关系梳理
-- **IMAGE fill 原始位图抽取**：通过 `imageRef` 走 `/v1/files/{fileKey}/images` 拿原图，解决大背景图带边框渲染的问题
-
-### Phase 3 — 规划中
-
-- **MCP Server**：让 AI Agent 通过 MCP 工具读取本地缓存的设计上下文
-- **Figma Code Connect**：组件 → 代码映射
+完整需求与技术说明见 [docs/design.md](docs/design.md)，实施设计与计划见 [docs/plans](docs/plans)。
 
 ## License
 
