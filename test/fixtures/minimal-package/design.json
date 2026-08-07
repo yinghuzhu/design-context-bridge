@@ -1,0 +1,16 @@
+{
+  "provider": "figma",
+  "documentId": "file123",
+  "rootId": "1:2",
+  "nodes": {
+    "1:2": {
+      "id": "1:2",
+      "name": "Minimal",
+      "type": "FRAME",
+      "visible": true,
+      "bounds": {"x": 0, "y": 0, "width": 10, "height": 10},
+      "children": [],
+      "style": {}
+    }
+  }
+}

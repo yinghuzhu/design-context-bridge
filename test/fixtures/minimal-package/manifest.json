@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "provider": "figma",
+    "url": "https://www.figma.com/design/file123/Page?node-id=1-2",
+    "documentId": "file123",
+    "nodeId": "1:2"
+  },
+  "document": "design.json",
+  "rawSource": "source/raw.json",
+  "screenshot": "screenshot.png",
+  "export": {"format": "png", "scale": 2},
+  "fingerprint": "15da08bf9035c2f856a4505044d8722a569b0e6142dfae8c8225b830e33b69ab",
+  "status": "complete",
+  "files": {},
+  "diagnostics": []
+}
