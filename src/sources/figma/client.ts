@@ -109,15 +109,24 @@ export class FigmaClient {
   }
 
   async download(url: string, destination: string): Promise<void> {
-    let response: Response;
-    try {
-      response = await this.#fetch(url);
-    } catch {
-      throw new FigmaNetworkError();
+    let response: Response | undefined;
+    for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt += 1) {
+      try {
+        response = await this.#fetch(url);
+      } catch {
+        if (attempt === RETRY_DELAYS_MS.length) throw new FigmaNetworkError();
+        await this.#sleep(RETRY_DELAYS_MS[attempt] ?? 0);
+        continue;
+      }
+      if (response.ok) break;
+      if (!retryableStatus(response.status) || attempt === RETRY_DELAYS_MS.length) {
+        throw new FigmaHttpError(response.status);
+      }
+      const fallback = RETRY_DELAYS_MS[attempt] ?? 0;
+      const retryAfter = parseRetryAfter(response.headers.get('Retry-After'));
+      await this.#sleep(Math.min(retryAfter ?? fallback, this.#maximumRetryDelayMs));
     }
-    if (!response.ok) {
-      throw new FigmaHttpError(response.status);
-    }
+    if (response === undefined || !response.ok) throw new FigmaNetworkError();
     await mkdir(dirname(destination), { recursive: true });
     await writeFile(destination, new Uint8Array(await response.arrayBuffer()));
   }

@@ -54,6 +54,66 @@ describe('normalizeFigmaDocument', () => {
   it('rejects a response without the selected node', async () => {
     expect(() => normalizeFigmaDocument({ nodes: {} }, target)).toThrow(/selected node/i);
   });
+
+  it('does not export effectively hidden or paintless visual nodes', () => {
+    const raw = {
+      nodes: {
+        '10:20': {
+          document: {
+            id: '10:20',
+            name: 'Page',
+            type: 'FRAME',
+            children: [
+              {
+                id: '10:60',
+                name: 'Hidden instance',
+                type: 'INSTANCE',
+                visible: false,
+                children: [{
+                  id: '10:61',
+                  name: 'Hidden child vector',
+                  type: 'VECTOR',
+                  strokes: [{ type: 'SOLID', visible: true }],
+                }],
+              },
+              {
+                id: '10:62',
+                name: 'Transparent vector',
+                type: 'VECTOR',
+                opacity: 0,
+                fills: [{ type: 'SOLID', visible: true }],
+              },
+              {
+                id: '10:63',
+                name: 'Paintless vector',
+                type: 'VECTOR',
+                fills: [],
+                strokes: [],
+                effects: [],
+              },
+              {
+                id: '10:64',
+                name: 'Visible vector',
+                type: 'VECTOR',
+                fills: [{ type: 'SOLID', visible: true }],
+              },
+            ],
+          },
+        },
+      },
+    };
+
+    const design = normalizeFigmaDocument(raw, target);
+
+    expect(design.nodes['10:60']?.visible).toBe(false);
+    expect(design.nodes['10:60']?.assetRef).toBeUndefined();
+    expect(design.nodes['10:61']?.visible).toBe(false);
+    expect(design.nodes['10:61']?.assetRef).toBeUndefined();
+    expect(design.nodes['10:62']?.visible).toBe(false);
+    expect(design.nodes['10:62']?.assetRef).toBeUndefined();
+    expect(design.nodes['10:63']?.assetRef).toBeUndefined();
+    expect(design.nodes['10:64']?.assetRef).toBe('10:64');
+  });
 });
 
 describe('FigmaAdapter', () => {

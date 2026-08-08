@@ -9,7 +9,7 @@ export const MIGRATION_STATE_FILENAME = 'migration.json';
 export interface ApprovedReference {
   route: string;
   implementation: string;
-  designUrl: string;
+  designUrl?: string;
   approvedByUser: true;
   [key: string]: unknown;
 }
@@ -60,8 +60,11 @@ export function validateMigrationState(value: unknown): MigrationState {
   }
   for (const [index, reference] of (value.approvedReferences as unknown[]).entries()) {
     if (!isRecord(reference)) throw new Error(`approvedReferences[${index}] must be an object`);
-    for (const field of ['route', 'implementation', 'designUrl'] as const) {
+    for (const field of ['route', 'implementation'] as const) {
       if (!nonEmptyString(reference[field])) throw new Error(`approvedReferences[${index}].${field} must be a non-empty string`);
+    }
+    if (reference.designUrl !== undefined && !nonEmptyString(reference.designUrl)) {
+      throw new Error(`approvedReferences[${index}].designUrl must be a non-empty string when provided`);
     }
     if (reference.approvedByUser !== true) throw new Error(`approvedReferences[${index}].approvedByUser must be true`);
   }

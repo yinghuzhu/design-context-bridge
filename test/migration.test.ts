@@ -35,6 +35,17 @@ describe('migration state', () => {
     expect(() => validateMigrationState(state)).toThrow(/designUrl/);
   });
 
+  it('accepts a user-approved implementation reference without a design URL', () => {
+    const state = emptyMigrationState();
+    state.approvedReferences.push({
+      route: '/checkout',
+      implementation: 'src/Checkout.tsx',
+      approvedByUser: true,
+    });
+
+    expect(validateMigrationState(state)).toEqual(state);
+  });
+
   it.each(['visualEvidence', 'businessEvidence'])('requires %s for validated targets', (field) => {
     const state = emptyMigrationState();
     const target: Record<string, unknown> = { route: '/payment/result', designUrl: 'https://design.example/node', status: 'validated', visualEvidence: ['actual.png'], businessEvidence: ['test output'] };

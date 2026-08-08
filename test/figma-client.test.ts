@@ -110,4 +110,29 @@ describe('FigmaClient', () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+
+  it('retries transient CDN download failures', async () => {
+    const delays: number[] = [];
+    let call = 0;
+    const fetchImpl = vi.fn(async () => {
+      call += 1;
+      if (call === 1) throw new Error('temporary network failure');
+      if (call === 2) return response({}, 503);
+      return response(new Uint8Array([4, 5, 6]));
+    });
+    const client = new FigmaClient('secret-token', fetchImpl, {
+      sleep: async (delay) => { delays.push(delay); },
+    });
+    const root = await mkdtemp(join(tmpdir(), 'design-context-client-'));
+    const destination = join(root, 'asset.png');
+    try {
+      await client.download('https://assets.invalid/signed?token=private', destination);
+
+      expect(fetchImpl).toHaveBeenCalledTimes(3);
+      expect(delays).toEqual([500, 1_000]);
+      expect(await readFile(destination)).toEqual(Buffer.from([4, 5, 6]));
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });

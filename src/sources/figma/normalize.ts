@@ -37,7 +37,7 @@ export function normalizeFigmaDocument(raw: unknown, target: DesignTarget): Desi
     throw new Error(`Figma response is missing selected node ${target.nodeId}`);
   }
   const nodes: Record<string, DesignNode> = {};
-  visit(selected.document, nodes);
+  visit(selected.document, nodes, true);
   if (nodes[target.nodeId] === undefined) {
     throw new Error(`Figma selected node ID does not match ${target.nodeId}`);
   }
@@ -53,7 +53,11 @@ export function safeFigmaRaw(raw: unknown): unknown {
   return sanitize(raw, new Set());
 }
 
-function visit(raw: Record<string, unknown>, nodes: Record<string, DesignNode>): void {
+function visit(
+  raw: Record<string, unknown>,
+  nodes: Record<string, DesignNode>,
+  ancestorVisible: boolean,
+): void {
   if (typeof raw.id !== 'string' || raw.id.length === 0) return;
   const id = colonId(raw.id);
   const children = Array.isArray(raw.children)
@@ -73,11 +77,12 @@ function visit(raw: Record<string, unknown>, nodes: Record<string, DesignNode>):
     style.padding = Object.fromEntries(Object.entries(padding).filter(([, value]) => value !== undefined));
   }
 
+  const visible = ancestorVisible && raw.visible !== false && raw.opacity !== 0;
   const node: DesignNode = {
     id,
     name: typeof raw.name === 'string' && raw.name.length > 0 ? raw.name : id,
     type: typeof raw.type === 'string' && raw.type.length > 0 ? raw.type : 'UNKNOWN',
-    visible: raw.visible !== false,
+    visible,
     bounds: bounds(raw.absoluteBoundingBox),
     children: children.map((child) => colonId(String(child.id))),
     style,
@@ -92,14 +97,38 @@ function visit(raw: Record<string, unknown>, nodes: Record<string, DesignNode>):
   if (isRecord(raw.componentProperties)) {
     node.componentProperties = sanitize(raw.componentProperties, new Set()) as Record<string, unknown>;
   }
-  if (needsExport(node.type, raw.fills)) node.assetRef = id;
+  if (needsExport(node.type, raw.fills, raw.strokes, raw.effects, visible)) node.assetRef = id;
   nodes[id] = node;
-  for (const child of children) visit(child, nodes);
+  for (const child of children) visit(child, nodes, visible);
 }
 
-function needsExport(type: string, fills: unknown): boolean {
-  if (['COMPONENT', 'INSTANCE', 'VECTOR', 'BOOLEAN_OPERATION'].includes(type)) return true;
-  return Array.isArray(fills) && fills.some((fill) => isRecord(fill) && fill.type === 'IMAGE');
+function needsExport(
+  type: string,
+  fills: unknown,
+  strokes: unknown,
+  effects: unknown,
+  visible: boolean,
+): boolean {
+  if (!visible) return false;
+  if (['COMPONENT', 'INSTANCE'].includes(type)) return true;
+  if (['VECTOR', 'BOOLEAN_OPERATION'].includes(type)) {
+    return hasVisiblePaint(fills) || hasVisiblePaint(strokes) || hasVisibleEffect(effects);
+  }
+  return Array.isArray(fills) && fills.some((fill) => (
+    isRecord(fill) && fill.type === 'IMAGE' && fill.visible !== false
+  ));
+}
+
+function hasVisiblePaint(value: unknown): boolean {
+  return Array.isArray(value) && value.some((paint) => (
+    isRecord(paint) && paint.visible !== false && paint.opacity !== 0
+  ));
+}
+
+function hasVisibleEffect(value: unknown): boolean {
+  return Array.isArray(value) && value.some((effect) => (
+    isRecord(effect) && effect.visible !== false
+  ));
 }
 
 function bounds(value: unknown): DesignBounds | null {
