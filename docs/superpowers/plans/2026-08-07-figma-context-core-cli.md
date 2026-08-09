@@ -1,5 +1,7 @@
 # Figma Context Core and CLI Implementation Plan
 
+> Historical implementation record. This Python/schema-v2 plan is non-normative; use the repository README, `docs/design.md`, and the active Node.js implementation for current behavior.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 把现有三个脚本整理为可测试、可恢复、面向 Agent 的 Python Core/CLI，并生成完整的版本化设计上下文资产包。

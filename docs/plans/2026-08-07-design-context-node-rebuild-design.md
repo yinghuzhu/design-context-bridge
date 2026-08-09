@@ -1,5 +1,7 @@
 # Design Context Bridge Node.js 重建设计
 
+> Historical implementation record. 本文记录 Node 重建时的阶段性设计，不是当前团队安装规范；当前规范以根目录 README、`docs/design.md` 和 `skills/design-replicate/` 为准。
+
 ## 目标
 
 将已经用 Python 验证可行的 Figma 页面上下文流程，重建为面向前端团队的 Node.js/TypeScript 产品。新产品不绑定 Figma 名称，但第一版只实现 Figma 设计平台适配器。

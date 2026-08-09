@@ -1,5 +1,7 @@
 # Design Context Bridge Node.js Rebuild Implementation Plan
 
+> Historical implementation record. This completed plan is non-normative; use the repository README, `docs/design.md`, and the active `design-replicate` Skill for current behavior.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 将 Python 可行性原型归档，并在 `master` 上交付面向前端团队、可通过 npm/npx 使用的通用 Node.js/TypeScript 设计上下文工具和 `design-replicate` Skill。

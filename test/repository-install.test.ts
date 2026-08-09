@@ -35,6 +35,35 @@ describe('repository distribution', () => {
     expect(packageJson.scripts?.prepack).toBeUndefined();
   });
 
+  it('documents only the repository installer and local state policy', async () => {
+    const readme = await readFile(resolve(ROOT, 'README.md'), 'utf8');
+    const template = await readFile(resolve(ROOT, 'templates', 'design-context.gitignore'), 'utf8');
+
+    for (const required of ['./scripts/install.sh', 'git pull --ff-only', '--refresh', '~/.local/bin', '.design-context/packages/', '.design-context/evidence/']) {
+      expect(readme).toContain(required);
+    }
+    for (const forbidden of ['npm install -g', 'npx design-context-bridge', 'npm publish']) {
+      expect(readme).not.toContain(forbidden);
+    }
+    expect(template).toContain('.design-context/packages/');
+    expect(template).toContain('.design-context/evidence/');
+    expect(template).not.toContain('migration.json');
+  });
+
+  it('marks obsolete implementation plans as historical', async () => {
+    const paths = [
+      'docs/plans/2026-08-07-agent-figma-replication-design.md',
+      'docs/plans/2026-08-07-design-context-node-rebuild-design.md',
+      'docs/superpowers/plans/2026-08-07-design-context-node-rebuild.md',
+      'docs/superpowers/plans/2026-08-07-figma-context-core-cli.md',
+      'docs/superpowers/plans/2026-08-07-figma-replicate-skill.md',
+    ];
+
+    for (const path of paths) {
+      expect(await readFile(resolve(ROOT, path), 'utf8')).toMatch(/^# .+\n\n> Historical implementation record\./u);
+    }
+  });
+
   it('installs the runtime, wrappers, and both Agent Skills into disposable user paths', async () => {
     const result = await runInstaller();
 

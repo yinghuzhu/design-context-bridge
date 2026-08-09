@@ -31,3 +31,11 @@ design-context migration validate "$TARGET_DIR" --json
 只有用户或适用说明确认的参考才能写入 `approvedReferences`，并设 `approvedByUser: true`。代码存在后才能标记 `implemented`。只有多模态 Agent 已检查原稿和实际截图、相关业务测试通过时，才能标记 `validated`，且必须同时写入非空 `visualEvidence` 和 `businessEvidence`。
 
 每次更新后重新校验。状态只保存相对证据路径、测试名和非敏感结果；禁止密码、Token、Cookie、Authorization、session 和 signed URL。
+
+## 仓库保存策略
+
+- `.design-context/migration.json` 只记录已确认的非敏感事实，经目标项目审查后可以提交。
+- `.design-context/packages/` 是设计截图、结构和素材缓存，默认加入目标项目 `.gitignore`，不得自行提交。
+- `.design-context/evidence/` 是本地或 CI 验证证据，默认忽略；只有目标项目明确批准后才能提交。
+
+可以参考工具仓库的 `templates/design-context.gitignore`。不得因为需要跨会话恢复，就把设计资产、凭据或未批准截图提交到目标仓库。

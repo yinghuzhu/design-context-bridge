@@ -1,5 +1,7 @@
 # Multimodal Figma Replication Skill Implementation Plan
 
+> Historical implementation record. This completed Figma-specific plan is non-normative; use `skills/design-replicate/` and the repository README for current behavior.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 提供 Codex、Claude Code 通用的 `figma-replicate` Skill，让多模态 Agent 在用户明确范围后调用 `figma-context` CLI，完成有界分析、页面实施、视觉迭代、业务验证和人工验收交接。

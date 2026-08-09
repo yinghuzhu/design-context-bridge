@@ -51,6 +51,7 @@ describe('design-replicate Skill contract', () => {
     expect(context).toContain('design.json');
     expect(context).toContain('signed asset URL');
     expect(context).toContain('CLI 不具备图片识别能力');
+    expect(context).toContain('--refresh');
   });
 
   it('requires explicit inputs and forbids unbounded repository discovery', async () => {
@@ -73,6 +74,8 @@ describe('design-replicate Skill contract', () => {
     expect(migration).toContain('.design-context/migration.json');
     expect(migration).toContain('visualEvidence');
     expect(migration).toContain('businessEvidence');
+    expect(migration).toContain('.design-context/packages/');
+    expect(migration).toContain('.design-context/evidence/');
     expect(browser.indexOf('当前 Agent')).toBeLessThan(browser.indexOf('Playwright MCP'));
     expect(browser).toMatch(/MFA|CAPTCHA/);
     expect(browser).toContain('不得索要');

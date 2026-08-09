@@ -8,7 +8,8 @@
 
 | 层次 | 名称 |
 |---|---|
-| npm package | `design-context-bridge` |
+| 私有 Node workspace | `design-context-bridge` |
+| 团队安装入口 | `./scripts/install.sh` |
 | Core CLI | `design-context` |
 | Skill installer | `design-replicate-install` |
 | Agent Skill | `design-replicate` |
@@ -67,7 +68,8 @@ Token、Authorization、Cookie、secret 和 signed asset URL 不得进入 manife
 
 - Token 只从 `FIGMA_TOKEN` 注入并仅用于 `api.figma.com`；资产下载不携带 Figma header。
 - export 每批最多 40 个 ID；400/404/422 批失败降级逐节点，401/403、5xx 和网络错误保持类型。
-- 429/5xx/网络重试有固定次数和 Retry-After 上限。
+- API 与资产请求默认 30 秒超时，单个资产默认限制为 50 MiB。
+- 429/5xx/网络重试有固定次数和 Retry-After 上限，同时支持秒数和 HTTP-date。
 - 返回 ID 统一为 colon 形式，签名 URL 只存在于短生命周期 `RemoteAsset`。
 - normalizer 覆盖 geometry、visibility、layout、text、paint、stroke、radius、effect、component、instance、variant 与 asset reference。
 
@@ -105,13 +107,22 @@ Skill 支持：
 
 视觉验收必须取得真实运行页面截图，由多模态 Agent 同时查看原稿和实际图，逐项检查结构、几何、排版、颜色、素材、裁剪和状态。可能影响交互或业务时必须验证；视觉通过但业务失败仍为 blocked。全部工具门禁通过后才通知人工验收。
 
+`.design-context/migration.json` 是可审查的迁移事实；`.design-context/packages/` 和 `.design-context/evidence/` 默认是本地或 CI 生成物。工具提供 `templates/design-context.gitignore`，不自动提交设计资产或验证截图。
+
+## 仓库分发
+
+项目设置为 private Node workspace，不发布 npm registry 包。团队成员克隆或更新 Git 仓库后运行 `./scripts/install.sh`。脚本完成依赖安装、完整质量门禁、构建、用户级 CLI 运行时复制以及 Codex/Claude Code Skill 安装，不需要 `sudo`，也不修改 shell 启动文件。
+
+默认运行时路径为 `~/.local/share/design-context-bridge`，命令路径为 `~/.local/bin`。安装清单和 Skill 所有权标记只记录 schema、工具、版本和来源 commit，不读取或持久化环境凭据。重复安装只替换本工具拥有的路径，未知同名目标会停止。
+
 ## 发布门禁
 
 - Node.js 20+；TypeScript ESM。
 - typecheck、ESLint、Vitest、tsup 全部通过。
-- npm tarball 只含 dist、README、LICENSE 和 `design-replicate` Skill。
-- 全新临时项目安装 tarball 后，CLI help/validate/inspect/status/render 可运行。
-- installer 在临时 Codex/Claude home 的 link/copy 模式可运行。
+- `package.json` 保持 `private: true`，README 不提供 registry 发布或安装路径。
+- 全新临时 HOME 运行 `./scripts/install.sh` 后，CLI help/version/validate/inspect/status/render 可运行。
+- installer 在临时 Codex/Claude home 的默认 both、单客户端和 owned update 模式可运行。
+- tracked-file 密钥扫描、Node 20/22 CI、typecheck、ESLint、Vitest 和 tsup 全部通过。
 - Core 无 Figma implementation import，活跃产品无 Python runtime 或旧命名。
 
 Python 原型仅保存在 `archive/python-v0.2`，Node 版不兼容旧 CLI、schema v2 或旧状态目录。

@@ -1,5 +1,7 @@
 # 多模态 Agent 驱动的 Figma 完整复刻设计方案
 
+> Historical implementation record. 本文仅保留早期 Python/Figma 专用方案的决策过程，不是当前安装、schema 或 Skill 规范；当前规范以根目录 README、`docs/design.md` 和 `skills/design-replicate/` 为准。
+
 > 状态：已确认
 > 日期：2026-08-07
 > 目标客户端：Codex、Claude Code

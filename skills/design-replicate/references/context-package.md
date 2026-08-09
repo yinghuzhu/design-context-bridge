@@ -15,15 +15,21 @@ design-context inspect "$PACKAGE_DIR" --json
 design-context render "$PACKAGE_DIR" --compare --json
 ```
 
+新任务、用户明确说明设计已更新，或同一 URL 可能对应新版设计时，prepare 增加 `--refresh`。只有 `continuation` 且可信状态确认设计来源未改变时才能直接复用缓存：
+
+```bash
+design-context prepare "$DESIGN_URL" --output "$CONTEXT_ROOT" --refresh --json
+```
+
 `PACKAGE_DIR` 只能来自 prepare 的 `data.packageDirectory`，并确认位于预期 output root。render 是可选辅助，不得代替目标应用截图。
 
 ## 状态门禁
 
 - `complete`：可以继续。
-- `partial`：逐项检查 diagnostic；只对 `retryable: true` 安全重试一次 `--force`。仍 partial 时，只有缺失项不阻止实现才继续并记录限制。
+- `partial`：逐项检查 diagnostic；只对 `retryable: true` 安全重试一次 `--refresh`。仍 partial 时，只有缺失项不阻止实现才继续并记录限制。
 - `invalid`：修改目标项目之前停止。
 
-根截图、`design.json`、`source/raw.json` 或 schema v1 manifest 缺失均按 invalid。鉴权、结构和文件系统错误不能用 `--force` 掩盖。
+根截图、`design.json`、`source/raw.json` 或 schema v1 manifest 缺失均按 invalid。鉴权、结构和文件系统错误不能用 `--refresh` 掩盖。
 
 ## 渐进读取
 
