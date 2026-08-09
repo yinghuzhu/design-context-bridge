@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { installSkill, main, type InstallOperations } from '../scripts/install-skill.js';
 
-async function sourceSkill(): Promise<string> {
+async function sourceSkill(version = 'current'): Promise<string> {
   const source = await mkdtemp(join(tmpdir(), 'design-replicate-source-'));
   await mkdir(join(source, 'references'), { recursive: true });
   await mkdir(join(source, 'examples'), { recursive: true });
@@ -15,6 +15,7 @@ async function sourceSkill(): Promise<string> {
   await writeFile(join(source, 'references', 'rules.md'), 'rules');
   await writeFile(join(source, 'examples', 'new-page.md'), 'example');
   await writeFile(join(source, 'agents', 'openai.yaml'), 'interface: {}\n');
+  await writeFile(join(source, 'VERSION'), version);
   return source;
 }
 
@@ -41,6 +42,47 @@ describe('installSkill', () => {
     expect((await lstat(destination ?? '')).isSymbolicLink()).toBe(false);
     await expect(readFile(join(destination ?? '', 'references', 'rules.md'), 'utf8')).resolves.toBe('rules');
     await expect(readFile(join(destination ?? '', 'examples', 'new-page.md'), 'utf8')).resolves.toBe('example');
+    await expect(readFile(join(destination ?? '', '.design-context-bridge-owned.json'), 'utf8')).resolves.toContain('design-context-bridge');
+  });
+
+  it('atomically replaces an owned copied Skill when update is enabled', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'design-replicate-home-'));
+    const [destination] = await installSkill(await sourceSkill('old'), home, ['codex'], true);
+    await writeFile(join(destination ?? '', 'stale.txt'), 'stale');
+
+    await installSkill(await sourceSkill('new'), home, ['codex'], true, {}, true);
+
+    await expect(readFile(join(destination ?? '', 'VERSION'), 'utf8')).resolves.toBe('new');
+    await expect(lstat(join(destination ?? '', 'stale.txt'))).rejects.toThrow();
+  });
+
+  it('refuses to update a copied Skill without the ownership marker', async () => {
+    const source = await sourceSkill('new');
+    const home = await mkdtemp(join(tmpdir(), 'design-replicate-home-'));
+    const destination = join(home, '.agents', 'skills', 'design-replicate');
+    await mkdir(destination, { recursive: true });
+    await writeFile(join(destination, 'owned-by-user'), 'keep');
+
+    await expect(installSkill(source, home, ['codex'], true, {}, true)).rejects.toThrow(/owned/i);
+    await expect(readFile(join(destination, 'owned-by-user'), 'utf8')).resolves.toBe('keep');
+  });
+
+  it('restores the prior owned Skill when replacement fails', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'design-replicate-home-'));
+    const [destination] = await installSkill(await sourceSkill('old'), home, ['codex'], true);
+    let renames = 0;
+    const operations: Partial<InstallOperations> = {
+      rename: async (from, to) => {
+        renames += 1;
+        if (renames === 2) throw new Error('replacement failed');
+        const { rename } = await import('node:fs/promises');
+        await rename(from, to);
+      },
+    };
+
+    await expect(installSkill(await sourceSkill('new'), home, ['codex'], true, operations, true)).rejects.toThrow(/replacement failed/);
+
+    await expect(readFile(join(destination ?? '', 'VERSION'), 'utf8')).resolves.toBe('old');
   });
 
   it('preflights all targets and preserves an existing destination', async () => {
@@ -96,5 +138,15 @@ describe('installSkill', () => {
     expect(exit).toBe(0);
     expect(output).toContain(join(home, '.claude', 'skills', 'design-replicate'));
     await expect(readFile(join(home, '.claude', 'skills', 'design-replicate', 'SKILL.md'), 'utf8')).resolves.toContain('design-replicate');
+  });
+
+  it('exposes owned updates through the installer CLI', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'design-replicate-home-'));
+    await main(['--client', 'codex', '--copy', '--home', home, '--source', await sourceSkill('old')]);
+
+    const exit = await main(['--client', 'codex', '--copy', '--update-owned', '--home', home, '--source', await sourceSkill('new')]);
+
+    expect(exit).toBe(0);
+    await expect(readFile(join(home, '.agents', 'skills', 'design-replicate', 'VERSION'), 'utf8')).resolves.toBe('new');
   });
 });
