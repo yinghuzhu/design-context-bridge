@@ -24,10 +24,11 @@
   },
   "scripts": {
     "build": "tsup",
+    "check:secrets": "bash scripts/check-secrets.sh",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "check": "npm run typecheck && npm run lint && npm test && npm run build"
+    "check": "npm run check:secrets && npm run typecheck && npm run lint && npm test && npm run build"
   },
   "devDependencies": {
     "@eslint/js": "9.33.0",
