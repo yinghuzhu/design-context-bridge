@@ -15,7 +15,7 @@ import {
   MissingTokenError,
   type CliDependencies,
 } from '../src/cli.js';
-import { FigmaHttpError } from '../src/sources/figma/client.js';
+import { FigmaDownloadSizeError, FigmaHttpError } from '../src/sources/figma/client.js';
 import { VERSION } from '../src/version.js';
 
 function harness(overrides: Partial<CliDependencies> = {}) {
@@ -102,6 +102,7 @@ describe('CLI JSON contract', () => {
     [new MissingTokenError(), EXIT_AUTH, 'missing_token'],
     [new FigmaHttpError(403), EXIT_AUTH, 'source_auth_failed'],
     [new FigmaHttpError(503), EXIT_SOURCE, 'source_api_failed'],
+    [new FigmaDownloadSizeError(), EXIT_SOURCE, 'source_asset_too_large'],
     [Object.assign(new Error('disk secret path'), { code: 'EIO' }), EXIT_FILESYSTEM, 'filesystem_error'],
   ] as const)('maps typed failure without leaking details', async (failure, expectedExit, code) => {
     const h = harness({ preparePackage: async () => { throw failure; } });

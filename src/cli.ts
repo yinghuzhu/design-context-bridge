@@ -13,7 +13,7 @@ import type { Diagnostic, PackageValidation } from './core/models.js';
 import { validatePackage as validatePackageDefault } from './core/package.js';
 import { PackageRenderError, renderPackage as renderPackageDefault } from './core/renderer.js';
 import { FigmaAdapter, type FigmaClientContract } from './sources/figma/adapter.js';
-import { FigmaHttpError, FigmaNetworkError } from './sources/figma/client.js';
+import { FigmaDownloadSizeError, FigmaHttpError, FigmaNetworkError } from './sources/figma/client.js';
 import { SourceRegistry } from './sources/registry.js';
 import { VERSION } from './version.js';
 
@@ -256,6 +256,11 @@ function errorEnvelope(command: string, error: unknown): [Envelope, number] {
     code = 'source_api_failed';
     message = 'The design source API request failed.';
     retryable = true;
+    exitCode = EXIT_SOURCE;
+    status = 'error';
+  } else if (error instanceof FigmaDownloadSizeError) {
+    code = 'source_asset_too_large';
+    message = 'A design source asset exceeds the configured download size limit.';
     exitCode = EXIT_SOURCE;
     status = 'error';
   } else if (error instanceof PackageRenderError) {

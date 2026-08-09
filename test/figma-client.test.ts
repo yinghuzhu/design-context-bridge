@@ -94,6 +94,34 @@ describe('FigmaClient', () => {
     expect(delays).toEqual([500, 2_000]);
   });
 
+  it('passes an abort signal and bounds stalled requests', async () => {
+    const fetchImpl = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      expect(init?.signal).toBeInstanceOf(AbortSignal);
+      init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true });
+    }));
+    const client = new FigmaClient('token', fetchImpl, { requestTimeoutMs: 2, sleep: async () => undefined });
+
+    await expect(client.fetchNode({ provider: 'figma', documentId: 'file', nodeId: '1:2', sourceUrl: 'https://figma.com/design/file/x?node-id=1-2', cacheKey: 'x' })).rejects.toThrow(/network/i);
+    expect(fetchImpl).toHaveBeenCalledTimes(4);
+  });
+
+  it('honors an HTTP-date Retry-After within the configured cap', async () => {
+    const now = Date.UTC(2026, 7, 9, 0, 0, 0);
+    const delays: number[] = [];
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(response({}, 429, { 'Retry-After': new Date(now + 60_000).toUTCString() }))
+      .mockResolvedValueOnce(response({ nodes: {} }));
+    const client = new FigmaClient('token', fetchImpl, {
+      now: () => now,
+      sleep: async (delay) => { delays.push(delay); },
+      maximumRetryDelayMs: 1_000,
+    });
+
+    await client.fetchNode({ provider: 'figma', documentId: 'file', nodeId: '1:2', sourceUrl: 'https://figma.com/design/file/x?node-id=1-2', cacheKey: 'x' });
+
+    expect(delays).toEqual([1_000]);
+  });
+
   it('downloads without the Figma header', async () => {
     const fetchImpl = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
       expect(init?.headers).toBeUndefined();
@@ -106,6 +134,32 @@ describe('FigmaClient', () => {
       await client.download('https://assets.invalid/signed?token=private', destination);
 
       expect(await readFile(destination)).toEqual(Buffer.from([1, 2, 3]));
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects a declared oversized download before writing a file', async () => {
+    const fetchImpl = vi.fn(async () => response(new Uint8Array([1]), 200, { 'content-length': '11' }));
+    const client = new FigmaClient('token', fetchImpl, { maximumDownloadBytes: 10 });
+    const root = await mkdtemp(join(tmpdir(), 'design-context-client-'));
+    const destination = join(root, 'asset.png');
+    try {
+      await expect(client.download('https://assets.invalid/a', destination)).rejects.toThrow(/size/i);
+      await expect(readFile(destination)).rejects.toThrow();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects oversized actual bytes when content-length is absent', async () => {
+    const fetchImpl = vi.fn(async () => response(new Uint8Array(11)));
+    const client = new FigmaClient('token', fetchImpl, { maximumDownloadBytes: 10 });
+    const root = await mkdtemp(join(tmpdir(), 'design-context-client-'));
+    const destination = join(root, 'asset.png');
+    try {
+      await expect(client.download('https://assets.invalid/a', destination)).rejects.toThrow(/size/i);
+      await expect(readFile(destination)).rejects.toThrow();
     } finally {
       await rm(root, { recursive: true, force: true });
     }

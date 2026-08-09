@@ -28,6 +28,7 @@ export type {
 export { parseFigmaUrl, supportsFigmaUrl } from './sources/figma/url.js';
 export {
   FigmaClient,
+  FigmaDownloadSizeError,
   FigmaHttpError,
   FigmaNetworkError,
 } from './sources/figma/client.js';
