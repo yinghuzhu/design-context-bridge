@@ -15,6 +15,7 @@ import { PackageRenderError, renderPackage as renderPackageDefault } from './cor
 import { FigmaAdapter, type FigmaClientContract } from './sources/figma/adapter.js';
 import { FigmaHttpError, FigmaNetworkError } from './sources/figma/client.js';
 import { SourceRegistry } from './sources/registry.js';
+import { VERSION } from './version.js';
 
 export const EXIT_OK = 0;
 export const EXIT_INVALID_PACKAGE = 20;
@@ -28,7 +29,7 @@ const HELP = `design-context
 Prepare deterministic design-platform context packages for multimodal Agents.
 
 Usage:
-  design-context prepare URL --output DIR [--provider NAME] [--format png|jpg|svg] [--scale N] [--force] [--json]
+  design-context prepare URL --output DIR [--provider NAME] [--format png|jpg|svg] [--scale N] [--force|--refresh] [--json]
   design-context inspect PACKAGE [--json]
   design-context validate-package PACKAGE [--json]
   design-context render PACKAGE [--output FILE] [--compare] [--json]
@@ -81,6 +82,10 @@ export async function main(
     stderr: (value) => process.stderr.write(value),
     ...supplied,
   };
+  if (argv.length === 1 && (argv[0] === '--version' || argv[0] === '-V')) {
+    dependencies.stdout(`${VERSION}\n`);
+    return EXIT_OK;
+  }
   if (argv.length === 0 || argv.includes('--help') || argv.includes('-h')) {
     dependencies.stderr(HELP);
     return EXIT_OK;
@@ -129,7 +134,7 @@ async function prepareCommand(argv: readonly string[], dependencies: CliDependen
   const parsed = parseOptions(
     argv,
     new Set(['--output', '--provider', '--format', '--scale']),
-    new Set(['--force']),
+    new Set(['--force', '--refresh']),
   );
   requireCount(parsed.positional, 1, 'prepare requires one design URL');
   const outputRoot = parsed.values['--output'];
@@ -147,7 +152,7 @@ async function prepareCommand(argv: readonly string[], dependencies: CliDependen
       ...(parsed.values['--provider'] === undefined ? {} : { provider: parsed.values['--provider'] }),
       format: format as 'png' | 'jpg' | 'svg',
       scale,
-      force: parsed.flags.has('--force'),
+      force: parsed.flags.has('--force') || parsed.flags.has('--refresh'),
     },
   );
   const context = await (dependencies.generateContextFiles ?? generateContextFilesDefault)(result.packageDirectory);

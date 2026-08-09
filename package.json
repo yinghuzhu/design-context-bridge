@@ -1,6 +1,7 @@
 {
   "name": "design-context-bridge",
-  "version": "0.1.0",
+  "version": "0.2.0",
+  "private": true,
   "description": "Prepare deterministic design-platform context packages for multimodal coding agents.",
   "type": "module",
   "engines": {
@@ -21,19 +22,12 @@
       "import": "./dist/install-skill.js"
     }
   },
-  "files": [
-    "dist",
-    "skills/design-replicate",
-    "README.md",
-    "LICENSE"
-  ],
   "scripts": {
     "build": "tsup",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "check": "npm run typecheck && npm run lint && npm test && npm run build",
-    "prepack": "npm run build"
+    "check": "npm run typecheck && npm run lint && npm test && npm run build"
   },
   "devDependencies": {
     "@eslint/js": "9.33.0",

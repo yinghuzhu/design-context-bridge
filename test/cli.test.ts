@@ -16,6 +16,7 @@ import {
   type CliDependencies,
 } from '../src/cli.js';
 import { FigmaHttpError } from '../src/sources/figma/client.js';
+import { VERSION } from '../src/version.js';
 
 function harness(overrides: Partial<CliDependencies> = {}) {
   let stdout = '';
@@ -30,6 +31,32 @@ function harness(overrides: Partial<CliDependencies> = {}) {
 }
 
 describe('CLI JSON contract', () => {
+  it('prints the project version without touching providers', async () => {
+    const h = harness();
+
+    const exit = await main(['--version'], h.dependencies);
+
+    expect(exit).toBe(EXIT_OK);
+    expect(h.stdout()).toBe(`${VERSION}\n`);
+    expect(h.stderr()).toBe('');
+  });
+
+  it('maps --refresh to a forced package preparation', async () => {
+    let forced = false;
+    const h = harness({
+      preparePackage: async (_sourceUrl, _registry, options) => {
+        forced = options.force === true;
+        return { packageDirectory: '/tmp/package', validation: { status: 'complete', diagnostics: [] }, cacheHit: false, provider: 'figma' };
+      },
+      generateContextFiles: async () => ({ context: '/tmp/package/AI_CONTEXT.md', styles: '/tmp/package/styles.json', components: '/tmp/package/components.json' }),
+    });
+
+    const exit = await main(['prepare', 'https://www.figma.com/design/file/Page?node-id=1-2', '--output', '/tmp/output', '--refresh', '--json'], h.dependencies);
+
+    expect(exit).toBe(EXIT_OK);
+    expect(forced).toBe(true);
+  });
+
   it.each(['complete', 'partial'] as const)('returns prepare status %s and generated context paths', async (status) => {
     const h = harness({
       preparePackage: async () => ({ packageDirectory: '/tmp/package', validation: { status, diagnostics: status === 'partial' ? [{ code: 'asset_missing', message: 'optional', retryable: true, nodeId: '2:3' }] : [] }, cacheHit: false, provider: 'figma' }),

@@ -57,6 +57,7 @@ export {
   migrationStatePath,
   validateMigrationState,
 } from './core/migration.js';
+export { VERSION } from './version.js';
 export type {
   ApprovedReference,
   MigrationState,
