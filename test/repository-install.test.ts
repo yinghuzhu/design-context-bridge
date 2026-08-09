@@ -64,6 +64,16 @@ describe('repository distribution', () => {
     }
   });
 
+  it('runs supported checks and installer smoke on Node 20 and 22 without publishing', async () => {
+    const workflow = await readFile(resolve(ROOT, '.github', 'workflows', 'ci.yml'), 'utf8');
+
+    for (const required of ['20', '22', 'npm ci', 'npm run check', 'scripts/install.sh', '--skip-check', 'design-context" --version']) {
+      expect(workflow).toContain(required);
+    }
+    expect(workflow).not.toContain('npm publish');
+    expect(workflow).not.toContain('NODE_AUTH_TOKEN');
+  });
+
   it('installs the runtime, wrappers, and both Agent Skills into disposable user paths', async () => {
     const result = await runInstaller();
 
