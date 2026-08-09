@@ -1,13 +1,6 @@
 import type { DesignTarget } from '../../core/models.js';
 
 const FIGMA_PATH_KINDS = new Set(['design', 'file', 'proto']);
-const SENSITIVE_QUERY_KEYS = new Set([
-  'access_token',
-  'authorization',
-  'figma_token',
-  'secret',
-  'token',
-]);
 
 export function supportsFigmaUrl(url: URL): boolean {
   const hostname = url.hostname.toLowerCase();
@@ -33,12 +26,10 @@ export function parseFigmaUrl(input: string | URL): DesignTarget {
     throw new Error('Figma URL is missing the node-id query parameter');
   }
   const nodeId = rawNodeId.replaceAll('-', ':');
-
-  for (const key of [...url.searchParams.keys()]) {
-    if (SENSITIVE_QUERY_KEYS.has(key.toLowerCase())) {
-      url.searchParams.delete(key);
-    }
-  }
+  const versionId = url.searchParams.get('version-id');
+  url.search = '';
+  url.searchParams.set('node-id', rawNodeId);
+  if (versionId !== null && versionId.length > 0) url.searchParams.set('version-id', versionId);
 
   return {
     provider: 'figma',

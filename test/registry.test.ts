@@ -56,6 +56,16 @@ describe('parseFigmaUrl', () => {
       'https://www.figma.com/design/file123/Page?node-id=1-2',
     );
   });
+
+  it('persists only node and optional version identifiers', () => {
+    const target = parseFigmaUrl(
+      'https://www.figma.com/design/file123/Page?node-id=1-2&t=session&utm_source=chat&version-id=456',
+    );
+
+    expect(target.sourceUrl).toBe(
+      'https://www.figma.com/design/file123/Page?node-id=1-2&version-id=456',
+    );
+  });
 });
 
 describe('SourceRegistry', () => {

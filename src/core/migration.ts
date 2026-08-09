@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename as renamePath, rm, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { isAbsolute, join, resolve } from 'node:path';
 
 export const MIGRATION_SCHEMA_VERSION = 1 as const;
 export const MIGRATION_STATE_DIRECTORY = '.design-context';
@@ -48,7 +48,7 @@ export function emptyMigrationState(): MigrationState {
 }
 
 export function validateMigrationState(value: unknown): MigrationState {
-  rejectCredentialKeys(value);
+  rejectCredentialData(value);
   if (!isRecord(value)) throw new Error('Migration state must be a JSON object');
   const keys = Object.keys(value).sort();
   if (JSON.stringify(keys) !== JSON.stringify([...TOP_LEVEL_KEYS])) {
@@ -73,6 +73,16 @@ export function validateMigrationState(value: unknown): MigrationState {
     if (target.status !== 'validated') continue;
     for (const field of ['visualEvidence', 'businessEvidence'] as const) {
       if (!Array.isArray(target[field]) || target[field].length === 0) throw new Error(`targets[${index}].${field} must be a non-empty array`);
+    }
+    for (const [evidenceIndex, evidence] of (target.visualEvidence as unknown[]).entries()) {
+      if (!safeRelativePath(evidence)) {
+        throw new Error(`targets[${index}].visualEvidence[${evidenceIndex}] must be a safe relative path`);
+      }
+    }
+    for (const [evidenceIndex, evidence] of (target.businessEvidence as unknown[]).entries()) {
+      if (!nonEmptyString(evidence)) {
+        throw new Error(`targets[${index}].businessEvidence[${evidenceIndex}] must be a non-empty string`);
+      }
     }
   }
   return value as unknown as MigrationState;
@@ -125,9 +135,13 @@ async function writeMigrationState(
   }
 }
 
-function rejectCredentialKeys(value: unknown): void {
+function rejectCredentialData(value: unknown): void {
+  if (typeof value === 'string') {
+    if (credentialShapedValue(value)) throw new Error('Sensitive credential value is forbidden in migration state');
+    return;
+  }
   if (Array.isArray(value)) {
-    for (const item of value) rejectCredentialKeys(item);
+    for (const item of value) rejectCredentialData(item);
     return;
   }
   if (!isRecord(value)) return;
@@ -136,8 +150,30 @@ function rejectCredentialKeys(value: unknown): void {
     if (['password', 'token', 'cookie', 'secret', 'authorization'].some((word) => normalized.includes(word))) {
       throw new Error(`Sensitive credential key is forbidden: ${key}`);
     }
-    rejectCredentialKeys(item);
+    rejectCredentialData(item);
   }
+}
+
+function credentialShapedValue(value: string): boolean {
+  if (/\bfigd_[A-Za-z0-9_-]{20,}\b/u.test(value)) return true;
+  if (/\bBearer\s+[A-Za-z0-9._~+/=-]{20,}\b/iu.test(value)) return true;
+  if (!/^https?:\/\//iu.test(value)) return false;
+  try {
+    const url = new URL(value);
+    for (const key of url.searchParams.keys()) {
+      const normalized = key.toLowerCase().replaceAll(/[^a-z]/gu, '');
+      if (['token', 'authorization', 'secret', 'signature', 'credential'].some((word) => normalized.includes(word))) return true;
+      if (normalized === 'expires') return true;
+    }
+  } catch {
+    return true;
+  }
+  return false;
+}
+
+function safeRelativePath(value: unknown): value is string {
+  if (!nonEmptyString(value) || isAbsolute(value) || /^[A-Za-z]:[\\/]/u.test(value) || /^[/\\]{2}/u.test(value)) return false;
+  return !value.split(/[\\/]/u).includes('..');
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

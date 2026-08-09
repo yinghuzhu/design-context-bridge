@@ -62,6 +62,31 @@ describe('migration state', () => {
     expect(() => validateMigrationState(state)).toThrow(/credential key/);
   });
 
+  it.each([
+    'https://assets.invalid/image?token=live-value',
+    'https://assets.invalid/image?X-Amz-Signature=live-value',
+    `Bearer ${'A'.repeat(24)}`,
+    `figd_${'B'.repeat(24)}`,
+  ])('rejects credential-shaped value %s', (value) => {
+    const state = emptyMigrationState();
+    state.protected.push({ note: value });
+
+    expect(() => validateMigrationState(state)).toThrow(/credential value/i);
+  });
+
+  it.each(['../outside.png', '/tmp/outside.png', 'C:\\temp\\outside.png'])('rejects unsafe visual evidence path %s', (path) => {
+    const state = emptyMigrationState();
+    state.targets.push({
+      route: '/payment/result',
+      designUrl: 'https://design.example/node',
+      status: 'validated',
+      visualEvidence: [path],
+      businessEvidence: ['npm test'],
+    });
+
+    expect(() => validateMigrationState(state)).toThrow(/visualEvidence.*relative/i);
+  });
+
   it('ignores legacy product state', async () => {
     const target = await mkdtemp(join(tmpdir(), 'design-context-migration-'));
     const legacyDirectory = `.${['figma', 'context'].join('-')}`;
