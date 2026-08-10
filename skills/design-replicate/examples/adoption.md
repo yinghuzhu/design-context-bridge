@@ -18,7 +18,7 @@
 
 ## State changes
 
-建立 `.design-context/migration.json`，参考记录 `approvedByUser: true`；验证后再推进 target。
+初始化外部 workspace 的 migration state，参考记录 `approvedByUser: true`；验证后再推进 target。
 
 ## Evidence
 

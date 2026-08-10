@@ -1,5 +1,7 @@
 # Repository Installation and Team Rollout Design
 
+> Superseded storage policy: the 2026-08-10 external workspace design replaces this document's in-repository `.design-context` recommendations. Retained as an implementation record.
+
 ## Goal
 
 Distribute Design Context Bridge directly from its Git repository to frontend team members without publishing an npm package. A single shell entrypoint must build and verify the Node.js project, install user-local CLI commands, install the `design-replicate` Skill for Codex and Claude Code, and avoid requiring `sudo` or a system-wide Node.js change.
@@ -96,4 +98,3 @@ Completion requires:
 - Node 20/22 CI configuration;
 - `npm run check` and an end-to-end repository installer smoke test;
 - a clean Git worktree apart from the intended implementation commits.
-

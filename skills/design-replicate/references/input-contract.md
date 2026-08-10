@@ -2,7 +2,7 @@
 
 ## 开始门禁
 
-读取目标仓库实现前，从用户、适用项目说明或有效 `.design-context/migration.json` 确认：
+读取目标仓库实现前，从用户、适用项目说明或 CLI 校验通过的外部 migration state 确认：
 
 - `design-platform URL`：本次目标对应的设计节点。
 - `target directory`：要修改的仓库或目录。
@@ -10,7 +10,7 @@
 - 迁移任务的 `approved completed new references`：已完成且获批准的新版页面；`initial` 必须明确为无。
 - 迁移任务的 `protected business behavior`：不得改变的 API、路由、状态、校验、错误处理、交互和业务流程；没有时也要明确为无。
 
-适用的 `AGENTS.md`、`CLAUDE.md`、README、测试说明或用户指定文档已经写明且互不冲突时，不要求重复输入。输入缺失时先询问，且不得扫描或修改目标仓库。
+适用的 `AGENTS.md`、`CLAUDE.md`、README、测试说明或用户指定文档已经写明且互不冲突时，不要求重复输入。目标目录确定后用 `design-context workspace resolve` 和 `design-context migration validate` 读取外部事实；不得通过搜索仓库中的生成目录猜测状态。输入缺失时先询问，且不得扫描或修改目标仓库。
 
 ## 范围角色
 

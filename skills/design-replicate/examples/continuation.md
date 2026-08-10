@@ -18,7 +18,7 @@
 
 ## State changes
 
-保留 prior state；通过后追加本次视觉和业务证据。
+从外部 workspace 保留 prior state；通过后把本次视觉和业务证据写入外部 `evidenceDirectory`。
 
 ## Evidence
 

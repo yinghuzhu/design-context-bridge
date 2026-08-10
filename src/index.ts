@@ -49,18 +49,36 @@ export type { GeneratedContextFiles } from './core/context.js';
 export { PackageRenderError, renderPackage } from './core/renderer.js';
 export type { RenderOptions, RenderResult } from './core/renderer.js';
 export {
+  canonicalizePotentialPath,
+  containsPath,
+  resolveOutputLocation,
+  resolveWorkspace,
+} from './core/workspace.js';
+export type {
+  OutputLocation,
+  StorageScope,
+  WorkspaceIdentitySource,
+  WorkspacePaths,
+  WorkspaceResolveOptions,
+} from './core/workspace.js';
+export {
   emptyMigrationState,
   initializeMigrationState,
+  importRepositoryMigrationState,
   loadMigrationState,
   MIGRATION_SCHEMA_VERSION,
   MIGRATION_STATE_DIRECTORY,
   MIGRATION_STATE_FILENAME,
   migrationStatePath,
+  MigrationStateConflictError,
+  repositoryMigrationStatePath,
   validateMigrationState,
 } from './core/migration.js';
 export { VERSION } from './version.js';
 export type {
   ApprovedReference,
+  MigrationOperationResult,
+  MigrationOptions,
   MigrationState,
   MigrationWriteOperations,
 } from './core/migration.js';

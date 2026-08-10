@@ -4,24 +4,38 @@
 
 先让 `design-context` registry 根据 design-platform URL 选择 adapter，或使用用户明确给出的 `--provider`。只在 cache miss 且 adapter 必须访问平台时检查该 provider 的环境变量。第一版 Figma adapter 使用 `FIGMA_TOKEN`；不得使用命令行 Token，也不得回显其值。其他 provider 未来由各自 adapter 定义凭据。
 
-## 命令顺序
+## 默认外部 workspace
 
-Agent 始终使用 `--json`，把 stdout 解析为单一 JSON envelope：
+Agent 始终使用 `--json`，先解析目标，再把 package 写入返回的外部 `packagesDirectory`：
 
 ```bash
-design-context prepare "$DESIGN_URL" --output "$CONTEXT_ROOT" --json
+design-context workspace resolve "$TARGET_DIR" --json
+design-context prepare "$DESIGN_URL" --target "$TARGET_DIR" --json
 design-context validate-package "$PACKAGE_DIR" --json
 design-context inspect "$PACKAGE_DIR" --json
 design-context render "$PACKAGE_DIR" --compare --json
 ```
 
-新任务、用户明确说明设计已更新，或同一 URL 可能对应新版设计时，prepare 增加 `--refresh`。只有 `continuation` 且可信状态确认设计来源未改变时才能直接复用缓存：
+`PACKAGE_DIR` 只能来自 prepare 的 `data.packageDirectory`，并确认位于同一响应的 `packagesDirectory` 下，且 `storageScope` 为 `external`。package、设计截图、`source/raw.json`、导出资产和上下文文件都不得复制进目标仓库。render 是可选辅助，不得代替目标应用截图。
+
+新任务、用户明确说明设计已更新，或同一 URL 可能对应新版设计时增加 `--refresh`。只有 `continuation` 且可信状态确认设计来源未改变时才能复用缓存：
 
 ```bash
-design-context prepare "$DESIGN_URL" --output "$CONTEXT_ROOT" --refresh --json
+design-context prepare "$DESIGN_URL" --target "$TARGET_DIR" --refresh --json
 ```
 
-`PACKAGE_DIR` 只能来自 prepare 的 `data.packageDirectory`，并确认位于预期 output root。render 是可选辅助，不得代替目标应用截图。
+## 显式工程内模式
+
+`--output` 保留给手工目录。输出真实路径位于 Git worktree 时默认拒绝。只有用户明确要求并理解误提交风险后才能执行：
+
+```bash
+design-context prepare "$DESIGN_URL" \
+  --output "$TARGET_DIR/.design-context/packages" \
+  --allow-in-repo \
+  --json
+```
+
+此时必须检查响应的 `storageScope: "in-repo"` 和风险 diagnostic，并在提交前执行生成物检查。单独传工程内 `--output` 不构成授权。
 
 ## 状态门禁
 

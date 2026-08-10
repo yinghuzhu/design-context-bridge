@@ -13,7 +13,7 @@
 | Core CLI | `design-context` |
 | Skill installer | `design-replicate-install` |
 | Agent Skill | `design-replicate` |
-| 目标仓库状态 | `.design-context/migration.json` |
+| 跨会话状态 | 外部 workspace 的 `migration.json` |
 
 ## 架构
 
@@ -82,19 +82,21 @@ renderer 对通用 bounds 做父子相对定位，转义 HTML/属性，引用 ma
 ## CLI 契约
 
 ```text
-prepare URL --output DIR [--provider] [--format] [--scale] [--force] [--json]
+workspace resolve TARGET_DIR [--json]
+prepare URL (--target TARGET_DIR | --output DIR [--allow-in-repo]) [--provider] [--format] [--scale] [--force] [--json]
 inspect PACKAGE [--json]
 validate-package PACKAGE [--json]
 status PACKAGE [--json]
 render PACKAGE [--output] [--compare] [--json]
 migration init|validate TARGET_DIR [--json]
+migration import TARGET_DIR --from-repository [--json]
 ```
 
 JSON stdout 恰好一个 envelope。只读命令无需 provider credential。错误码把无效包、无效输入、鉴权、来源和文件系统失败分开，错误消息在输出前脱敏。
 
 ## Migration 与 Skill
 
-`.design-context/migration.json` schema v1 只保存已确认事实。approved reference 必须有 `approvedByUser: true`；validated target 必须同时有 `visualEvidence` 和 `businessEvidence`。递归拒绝 credential key，临时文件与 rename 保证替换失败时旧状态字节不变。
+外部 workspace 的 `migration.json` schema v1 只保存已确认事实。approved reference 必须有 `approvedByUser: true`；validated target 必须同时有 `visualEvidence` 和 `businessEvidence`。递归拒绝 credential key，临时文件与 rename 保证发布失败时不留下部分状态。旧仓库状态仅在校验成功后复制；双状态冲突时不覆盖或合并。
 
 Skill 支持：
 
@@ -107,7 +109,7 @@ Skill 支持：
 
 视觉验收必须取得真实运行页面截图，由多模态 Agent 同时查看原稿和实际图，逐项检查结构、几何、排版、颜色、素材、裁剪和状态。可能影响交互或业务时必须验证；视觉通过但业务失败仍为 blocked。全部工具门禁通过后才通知人工验收。
 
-`.design-context/migration.json` 是可审查的迁移事实；`.design-context/packages/` 和 `.design-context/evidence/` 默认是本地或 CI 生成物。工具提供 `templates/design-context.gitignore`，不自动提交设计资产或验证截图。
+默认状态位于 `DESIGN_CONTEXT_STATE_HOME`、`XDG_STATE_HOME` 或 `~/.local/state`，默认 package/evidence 位于 `DESIGN_CONTEXT_CACHE_HOME`、`XDG_CACHE_HOME` 或 `~/.cache`。Git 项目第一次使用规范化 Git 根路径的 SHA-256，并把它原子固定在实际 `<git-dir>/design-context-bridge/workspace-id`；目录改名后继续使用该 ID。Git 不可用时回退目标 realpath 哈希。外部目录使用 `<workspaceId>--<repository-name>` 并保存 `workspace.json`。目标仓库内输出默认拒绝，`templates/design-context.gitignore` 只防御 legacy/manual in-repository mode。
 
 ## 仓库分发
 

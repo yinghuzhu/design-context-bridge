@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Move migration state, design packages, screenshots, assets, and evidence to canonical external workspaces by default.
+- Add `workspace resolve`, `prepare --target`, realpath-aware in-repository output refusal, and explicit `--allow-in-repo` risk acceptance.
+- Add validated legacy state import, dual-state conflict detection, and staged generated-file gates for Agents.
+- Pin the original path hash in Git-local metadata for rename-safe identity, add readable workspace directory names and metadata, and retain path-hash fallback when Git is absent.
+
 ## 0.2.0 - 2026-08-09
 
 - Distribute from the Git repository through `./scripts/install.sh` instead of an npm registry package.

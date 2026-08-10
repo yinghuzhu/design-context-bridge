@@ -20,11 +20,14 @@ describe('design-replicate Skill contract', () => {
     expect(skill).toContain('target page/route');
     expect(skill).toContain('approved reference');
     expect(skill).toContain('protected business behavior');
-    expect(skill).toContain('.design-context/migration.json');
+    expect(skill).toContain('design-context workspace resolve');
+    expect(skill).toContain('外部 workspace');
     expect(skill).toContain('design-context prepare');
     expect(skill).toContain('Playwright MCP');
     expect(skill).toContain('不得扫描整个仓库');
     expect(skill).toContain('视觉通过但业务失败');
+    expect(skill).toContain('git diff --cached --name-only');
+    expect(skill).toContain('不得执行 `git add -A`');
     expect(skill.split('\n').length).toBeLessThan(500);
   });
 
@@ -52,6 +55,9 @@ describe('design-replicate Skill contract', () => {
     expect(context).toContain('signed asset URL');
     expect(context).toContain('CLI 不具备图片识别能力');
     expect(context).toContain('--refresh');
+    expect(context).toContain('--target "$TARGET_DIR"');
+    expect(context).toContain('storageScope');
+    expect(context).toContain('--allow-in-repo');
   });
 
   it('requires explicit inputs and forbids unbounded repository discovery', async () => {
@@ -62,6 +68,7 @@ describe('design-replicate Skill contract', () => {
     expect(input).toContain('输入缺失');
     expect(input).toContain('不得扫描或修改');
     expect(input).toContain('禁止默认遍历全部页面、完整组件库或全部 Git 历史');
+    expect(input).toContain('外部 migration state');
   });
 
   it('covers migration modes, auth fallback, and visual plus business gates', async () => {
@@ -71,11 +78,20 @@ describe('design-replicate Skill contract', () => {
 
     for (const mode of ['new', 'initial', 'continuation', 'adoption']) expect(migration).toContain(`\`${mode}\``);
     expect(migration).toContain('新会话不等于新迁移');
-    expect(migration).toContain('.design-context/migration.json');
+    expect(migration).toContain('design-context workspace resolve');
+    expect(migration).toContain('DESIGN_CONTEXT_STATE_HOME');
+    expect(migration).toContain('DESIGN_CONTEXT_CACHE_HOME');
+    expect(migration).toContain('migration import');
     expect(migration).toContain('visualEvidence');
     expect(migration).toContain('businessEvidence');
-    expect(migration).toContain('.design-context/packages/');
-    expect(migration).toContain('.design-context/evidence/');
+    expect(migration).toContain('packagesDirectory');
+    expect(migration).toContain('evidenceDirectory');
+    expect(migration).toContain('不得自动修改目标项目的 `.gitignore`');
+    expect(migration).toContain('design-context-bridge/workspace-id');
+    expect(migration).toContain('identitySource');
+    expect(migration).toContain('path-hash');
+    expect(migration).toContain('非 Git');
+    expect(migration).toContain('目录改名');
     expect(browser.indexOf('当前 Agent')).toBeLessThan(browser.indexOf('Playwright MCP'));
     expect(browser).toMatch(/MFA|CAPTCHA/);
     expect(browser).toContain('不得索要');
@@ -86,6 +102,19 @@ describe('design-replicate Skill contract', () => {
     expect(validation).toContain('必须验证');
     expect(validation).toContain('视觉通过但业务失败');
     expect(validation).toContain('人工验收');
+    for (const generated of ['.design-context/', 'playwright-report/', 'test-results/', 'coverage/', '原始 JSON', '临时证据']) expect(validation).toContain(generated);
+    expect(validation).toContain('git diff --cached --name-only');
+    expect(validation).toContain('停止提交');
+  });
+
+  it('keeps default generated state and assets outside the target repository', async () => {
+    const skill = await text('SKILL.md');
+    const examples = (await readdir(join(SKILL, 'examples'))).filter((name) => name.endsWith('.md'));
+    const exampleText = (await Promise.all(examples.map((name) => text(`examples/${name}`)))).join('\n');
+
+    expect(skill).not.toContain('更新 `.design-context/migration.json`');
+    expect(exampleText).not.toContain('建立 `.design-context/migration.json`');
+    expect(exampleText).not.toContain('初始化 `.design-context/migration.json`');
   });
 
   it('contains no active legacy command, state, or Skill names', async () => {

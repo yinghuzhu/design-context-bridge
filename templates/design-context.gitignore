@@ -1,3 +1,4 @@
-# Generated design packages and local validation screenshots
+# legacy/manual in-repository mode only; not the default storage and not the primary safety mechanism
+.design-context/migration.json
 .design-context/packages/
 .design-context/evidence/

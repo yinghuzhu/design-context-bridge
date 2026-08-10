@@ -57,21 +57,24 @@ export FIGMA_TOKEN='<your-token>'
 ## 准备上下文包
 
 ```bash
-design-context prepare \
-  'https://www.figma.com/design/<fileKey>/<title>?node-id=1-2' \
-  --output .design-context/packages \
+TARGET_DIR=/absolute/path/to/target-repo
+DESIGN_URL='https://www.figma.com/design/<fileKey>/<title>?node-id=1-2'
+
+design-context workspace resolve "$TARGET_DIR" --json
+design-context prepare "$DESIGN_URL" \
+  --target "$TARGET_DIR" \
   --format png \
   --scale 2 \
   --json
 ```
 
-未指定 `--provider` 时，registry 根据 URL 选择 adapter。有效 fingerprint 缓存可在没有 Token 时复用。
+`workspace resolve` 返回规范化目标目录、Git 根、稳定 `workspaceId`、`identitySource`、实际 `stateFile`、`packagesDirectory`、`evidenceDirectory` 和 `storageScope: "external"`。未指定 `--provider` 时，registry 根据 URL 选择 adapter。有效 fingerprint 缓存可在没有 Token 时复用。
 
 设计稿内容可能已改变但 URL 未改变时显式刷新：
 
 ```bash
 design-context prepare "$DESIGN_URL" \
-  --output .design-context/packages \
+  --target "$TARGET_DIR" \
   --refresh \
   --json
 ```
@@ -81,26 +84,87 @@ design-context prepare "$DESIGN_URL" \
 只读与辅助命令：
 
 ```bash
-design-context validate-package .design-context/packages/<package> --json
-design-context inspect .design-context/packages/<package> --json
-design-context status .design-context/packages/<package> --json
-design-context render .design-context/packages/<package> --compare --json
+design-context validate-package "$PACKAGE_DIR" --json
+design-context inspect "$PACKAGE_DIR" --json
+design-context status "$PACKAGE_DIR" --json
+design-context render "$PACKAGE_DIR" --compare --json
 
-design-context migration init /path/to/target-repo --json
-design-context migration validate /path/to/target-repo --json
+design-context migration init "$TARGET_DIR" --json
+design-context migration validate "$TARGET_DIR" --json
 ```
 
 JSON 模式 stdout 始终只有一个 `{ok, command, status, data, diagnostics}` 对象；面向人的输出写 stderr。退出码：`0` 成功或可用 partial，`20` 无效包，`30` 无效输入，`40` 凭据缺失/鉴权失败，`50` 来源 API/网络失败，`60` 文件系统失败。
 
-## 目标项目状态策略
+## 外部 workspace 存储
 
-迁移事实和生成资产使用不同策略：
+默认运行不会在目标项目中创建 `.design-context`，也不会修改目标项目的 `.gitignore`。Git 项目通过 `git rev-parse --absolute-git-dir` 找到实际 Git 元数据目录，workspace ID 保存在：
 
-- `.design-context/migration.json`：经过项目审查后可以提交，保存已确认且非敏感的迁移事实。
-- `.design-context/packages/`：设计截图、结构和素材的本地缓存，默认忽略，不提交。
-- `.design-context/evidence/`：本地或 CI 验证证据，默认忽略；只有目标项目明确批准时才提交。
+```text
+<git-dir>/design-context-bridge/workspace-id
+```
 
-仓库提供可复制的 [templates/design-context.gitignore](templates/design-context.gitignore)。Skill 不得自行提交 packages 或 evidence。
+该文件只包含 64 位小写 SHA-256，不是凭据，不在 Git 工作树中，不会出现在 `git status`，也不能提交。首次使用时，CLI 把规范化 Git 根路径的 SHA-256 原子写入此文件；以后仓库目录改名仍使用该固定 ID。文件损坏时 CLI 会停止，不静默覆盖。
+
+非 Git 项目，或 `.git` 已被删除的目录，使用规范化目标目录的路径哈希，响应中表现为 `identitySource: "path-hash"`。Git 元数据有效时则是 `identitySource: "git-metadata"`。
+
+状态目录优先级：
+
+```text
+DESIGN_CONTEXT_STATE_HOME
+→ XDG_STATE_HOME
+→ ~/.local/state
+```
+
+缓存目录优先级：
+
+```text
+DESIGN_CONTEXT_CACHE_HOME
+→ XDG_CACHE_HOME
+→ ~/.cache
+```
+
+默认布局：
+
+```text
+<state-root>/design-context-bridge/workspaces/<workspaceId>--<repository-name>/
+├── workspace.json
+└── migration.json
+
+<cache-root>/design-context-bridge/workspaces/<workspaceId>--<repository-name>/
+├── packages/
+└── evidence/
+```
+
+workspaceId 前缀是权威身份，repository-name 后缀只用于人工识别。`workspace.json` 记录当前名称、当前路径和历史路径。同一仓库通过相对路径、绝对路径或符号链接访问会得到同一个 workspace。两个不同仓库不会共享状态或缓存。
+
+### 删除 `.git` 或非 Git 目录改名
+
+- `.git` 被删除但目录未改名：路径哈希与首次写入的 ID 相同，会继续找到原 workspace。
+- Git 仓库正常改名：Git 本地 ID 随 `.git` 一起移动，workspace 不变。
+- 非 Git 项目改名，或删除 `.git` 后同时改名：无法自动证明新旧目录是同一项目，会生成新 workspace。
+
+计划给非 Git 项目改名前，先保存 `workspace resolve --json` 返回的旧 `stateFile`。改名后再次执行 resolve；package 和 evidence 可以重新生成。如果需要恢复 migration state，只在新 `stateFile` 不存在时，把旧 `migration.json` 复制到新路径并立即执行 `design-context migration validate "$TARGET_DIR" --json`。新旧状态都存在或内容不明确时停止，不要覆盖或猜测。旧目录可通过带项目名的 `<workspaceId>--<repository-name>` 和其中的 `workspace.json` 人工定位。
+
+## 旧状态与手工工程内模式
+
+旧项目存在 `.design-context/migration.json` 时，可显式导入：
+
+```bash
+design-context migration import "$TARGET_DIR" --from-repository --json
+```
+
+CLI 会先校验再复制到外部 `stateFile`，不会删除旧目录。外部状态缺失时，`migration init`/`validate` 也会安全导入并返回 cleanup diagnostic；新旧状态同时存在且内容不同会停止，不覆盖或合并。
+
+`--output` 继续支持手工目录。真实输出路径位于 Git worktree 时默认拒绝，只有用户明确接受误提交风险并同时传入 `--allow-in-repo` 才允许：
+
+```bash
+design-context prepare "$DESIGN_URL" \
+  --output "$TARGET_DIR/.design-context/packages" \
+  --allow-in-repo \
+  --json
+```
+
+[templates/design-context.gitignore](templates/design-context.gitignore) 仅用于 legacy/manual in-repository mode 的防御，不是默认存储方案，也不是主要安全机制。
 
 ## 通用 package schema v1
 
@@ -131,13 +195,14 @@ JSON 模式 stdout 始终只有一个 `{ok, command, status, data, diagnostics}`
 
 推荐流程：
 
-1. `design-context prepare`、`validate-package` 和 `inspect`。
+1. `design-context workspace resolve`，再使用 `prepare --target`、`validate-package` 和 `inspect`。
 2. 查看 manifest screenshot，再按需定向读取 `design.json`、assets、styles 和 components。
 3. 复用目标仓库既有技术栈和已批准组件，保护 API、路由、状态、校验、错误处理及数据流。
 4. 启动真实应用；优先当前浏览器，无控制能力时使用外部 Playwright MCP 或项目现有浏览器测试。
 5. 多模态 Agent 对比原稿与真实页面截图并迭代，直到无高、中优先级差异。
 6. 任何可能影响交互或业务流程的修改都运行相关验证。
-7. 视觉和业务门禁全部通过后，才更新 `.design-context/migration.json` 并通知人工验收。
+7. 视觉和业务门禁全部通过后，才更新 CLI 返回的外部 `stateFile` 并通知人工验收。
+8. 准备提交前运行 `git diff --cached --name-only`，发现 `.design-context/`、Playwright 报告、coverage、截图、原始 JSON、导出资产或临时证据已暂存时停止提交；Skill 不执行 `git add -A`。
 
 CLI 不进行图片识别、视觉评分或最终验收判断，也不提供自有 MCP/HTTP 服务。
 
@@ -150,7 +215,7 @@ npm run check
 
 `npm run check` 包含 tracked-file 密钥扫描、typecheck、ESLint、Vitest 和构建。密钥扫描只报告可疑文件路径，不输出命中的值。完整架构与安全边界见 [docs/design.md](docs/design.md)，版本变化见 [CHANGELOG.md](CHANGELOG.md)。
 
-Python 可行性原型保存在远程分支 `archive/python-v0.2`；当前版本不提供 Python CLI、旧 schema 或旧状态目录兼容层。
+Python 可行性原型保存在远程分支 `archive/python-v0.2`；当前版本不提供 Python CLI。Node.js CLI 只为旧 `.design-context/migration.json` 提供校验后外部导入，不再向旧目录写入。
 
 ## License
 

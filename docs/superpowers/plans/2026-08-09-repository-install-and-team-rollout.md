@@ -1,5 +1,7 @@
 # Repository Installation and Team Rollout Implementation Plan
 
+> Superseded storage policy: the 2026-08-10 external workspace plan replaces this document's in-repository `.design-context` recommendations. Retained as an implementation record.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Ship Design Context Bridge directly from its Git repository through one safe user-local shell installer, with no npm publication path and with production-grade security, cache-refresh, network, CI, and team-onboarding gates.

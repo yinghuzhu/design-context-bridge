@@ -9,6 +9,7 @@
 - 只有 `mfa-user-handoff` 允许人工登录，而且只允许用户在所选测试浏览器中完成 MFA 身份步骤；不得要求用户把密码、验证码或 session 内容发给 Agent。
 - 抽象 fixture 的 `simulatedOutcomes` 由评测适配器注入，不能被记录成真实应用验证。没有适配器时，本包只验证 Agent 的范围决策、预期命令和完成门禁。
 - 不得把 `expected/` 文件复制进 Agent workspace，也不得在 prompt 中泄露期望答案。评测者在 Agent 结束后单独对照它。
+- 为每次运行设置独立的 `DESIGN_CONTEXT_STATE_HOME` 和 `DESIGN_CONTEXT_CACHE_HOME`，两者必须位于 fixture Git 仓库之外；不得在 `project/` 下物化 package、evidence 或 migration state。
 
 ## 前置条件
 
@@ -34,7 +35,7 @@ git -C "$WORKSPACE" init --quiet
 printf '%s\n' "$PROMPT" > "$WORKSPACE/case-prompt.txt"
 ```
 
-真实集成 runner 应在 `git init` 后、启动 Agent 前根据 `eval-fixture.json` 物化声明的 `project/`、`context/`、`evidence/` 和模拟工具结果。不要物化 `forbiddenReads` 内容来诱导实现；如需验证超大仓访问边界，只创建同名无关目录并通过访问审计判定是否触碰。
+真实集成 runner 应在 `git init` 后、启动 Agent 前根据 `eval-fixture.json` 物化声明的 `project/` 和模拟工具结果；`context/`、`evidence/` 与 migration state 必须物化到仓库外的隔离 workspace。不要物化 `forbiddenReads` 内容来诱导实现；如需验证超大仓访问边界，只创建同名无关目录并通过访问审计判定是否触碰。
 
 ## Codex
 
@@ -86,6 +87,7 @@ Agent 退出后再打开 `expected/$CASE_NAME.md`，逐项检查：
 4. `expectedState`：核对文件状态、迁移状态、视觉/业务证据和最终措辞。只有事实发生后才能推进状态。
 5. `completionAllowed`：为 false 时不能出现完成声明或人工验收通知；为 true 也只是允许，仍须全部前置门禁真实通过。
 6. 结合 expected 报告的“允许行为”“禁止行为”“最终报告条件”记录 Codex 与 Claude Code 各自 pass/fail 和证据路径。
+7. 执行 `git diff --cached --name-only` 和 `git status --porcelain`；任何 Skill 生成截图、JSON、资产、报告或证据进入 project 工作区或暂存区都判失败。
 
 跨客户端通过要求两者执行相同范围和完成门禁，不要求 transcript 文案逐字一致。任何需要真实截图或业务环境而未物化的步骤必须标为未执行，禁止伪称通过。
 

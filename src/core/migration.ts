@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename as renamePath, rm, writeFile } from 'node:fs/promises';
-import { isAbsolute, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join } from 'node:path';
+
+import type { Diagnostic } from './models.js';
+import { resolveWorkspace, type WorkspacePaths, type WorkspaceResolveOptions } from './workspace.js';
 
 export const MIGRATION_SCHEMA_VERSION = 1 as const;
 export const MIGRATION_STATE_DIRECTORY = '.design-context';
@@ -25,6 +28,23 @@ export interface MigrationState {
 
 export interface MigrationWriteOperations {
   rename(source: string, destination: string): Promise<void>;
+}
+
+export interface MigrationOptions extends WorkspaceResolveOptions {
+  operations?: MigrationWriteOperations;
+}
+
+export interface MigrationOperationResult {
+  state: MigrationState;
+  workspace: WorkspacePaths;
+  diagnostics: Diagnostic[];
+}
+
+export class MigrationStateConflictError extends Error {
+  constructor() {
+    super('External and repository migration states differ; resolve the conflict before continuing');
+    this.name = 'MigrationStateConflictError';
+  }
 }
 
 const TOP_LEVEL_KEYS = [
@@ -88,36 +108,85 @@ export function validateMigrationState(value: unknown): MigrationState {
   return value as unknown as MigrationState;
 }
 
-export async function loadMigrationState(targetDirectory: string): Promise<MigrationState> {
-  const path = migrationStatePath(targetDirectory);
-  let value: unknown;
-  try {
-    value = JSON.parse(await readFile(path, 'utf8')) as unknown;
-  } catch (error) {
-    if (error instanceof SyntaxError) throw new Error('Invalid migration state JSON');
-    throw error;
-  }
-  return validateMigrationState(value);
+export async function loadMigrationState(
+  targetDirectory: string,
+  options: MigrationOptions = {},
+): Promise<MigrationOperationResult> {
+  const workspace = await resolveWorkspace(targetDirectory, options);
+  return reconcileMigrationState(workspace, false, options.operations ?? { rename: renamePath });
 }
 
 export async function initializeMigrationState(
   targetDirectory: string,
-  operations: MigrationWriteOperations = { rename: renamePath },
-): Promise<MigrationState> {
-  const path = migrationStatePath(targetDirectory);
-  let state = emptyMigrationState();
+  options: MigrationOptions | MigrationWriteOperations = {},
+): Promise<MigrationOperationResult> {
+  const normalized = normalizeOptions(options);
+  const workspace = await resolveWorkspace(targetDirectory, normalized);
   try {
-    state = await loadMigrationState(targetDirectory);
+    return await reconcileMigrationState(workspace, false, normalized.operations ?? { rename: renamePath });
   } catch (error) {
     if (!isMissingError(error)) throw error;
   }
-  await mkdir(resolve(targetDirectory, MIGRATION_STATE_DIRECTORY), { recursive: true });
-  await writeMigrationState(path, state, operations);
-  return state;
+  const state = emptyMigrationState();
+  await mkdir(dirname(workspace.stateFile), { recursive: true });
+  await writeMigrationState(workspace.stateFile, state, normalized.operations ?? { rename: renamePath });
+  return { state, workspace, diagnostics: [] };
 }
 
-export function migrationStatePath(targetDirectory: string): string {
-  return join(resolve(targetDirectory), MIGRATION_STATE_DIRECTORY, MIGRATION_STATE_FILENAME);
+export async function importRepositoryMigrationState(
+  targetDirectory: string,
+  options: MigrationOptions = {},
+): Promise<MigrationOperationResult> {
+  const workspace = await resolveWorkspace(targetDirectory, options);
+  return reconcileMigrationState(workspace, true, options.operations ?? { rename: renamePath });
+}
+
+export async function migrationStatePath(
+  targetDirectory: string,
+  options: WorkspaceResolveOptions = {},
+): Promise<string> {
+  return (await resolveWorkspace(targetDirectory, options)).stateFile;
+}
+
+export function repositoryMigrationStatePath(workspace: WorkspacePaths): string {
+  return join(workspace.gitRoot ?? workspace.targetDirectory, MIGRATION_STATE_DIRECTORY, MIGRATION_STATE_FILENAME);
+}
+
+async function reconcileMigrationState(
+  workspace: WorkspacePaths,
+  requireRepositoryState: boolean,
+  operations: MigrationWriteOperations,
+): Promise<MigrationOperationResult> {
+  const legacyPath = repositoryMigrationStatePath(workspace);
+  const [external, legacy] = await Promise.all([readStateIfPresent(workspace.stateFile), readStateIfPresent(legacyPath)]);
+  if (requireRepositoryState && legacy === null) throw new Error('No repository migration state exists to import');
+  if (external !== null && legacy !== null && canonicalJson(external) !== canonicalJson(legacy)) {
+    throw new MigrationStateConflictError();
+  }
+  if (external !== null) {
+    return {
+      state: external,
+      workspace,
+      diagnostics: legacy === null ? [] : [legacyStateDiagnostic('legacy_state_present')],
+    };
+  }
+  if (legacy !== null) {
+    await mkdir(dirname(workspace.stateFile), { recursive: true });
+    await writeMigrationState(workspace.stateFile, legacy, operations);
+    return { state: legacy, workspace, diagnostics: [legacyStateDiagnostic('legacy_state_imported')] };
+  }
+  throw Object.assign(new Error('Migration state does not exist'), { code: 'ENOENT' });
+}
+
+async function readStateIfPresent(path: string): Promise<MigrationState | null> {
+  try {
+    const value = JSON.parse(await readFile(path, 'utf8')) as unknown;
+    return validateMigrationState(value);
+  } catch (error) {
+    if (isMissingError(error)) return null;
+    if (error instanceof SyntaxError) throw new Error('Invalid migration state JSON');
+    throw error;
+  }
 }
 
 async function writeMigrationState(
@@ -126,13 +195,34 @@ async function writeMigrationState(
   operations: MigrationWriteOperations,
 ): Promise<void> {
   validateMigrationState(state);
-  const temporary = join(resolve(destination, '..'), `.${MIGRATION_STATE_FILENAME}.${randomUUID()}.tmp`);
+  const temporary = join(dirname(destination), `.${MIGRATION_STATE_FILENAME}.${randomUUID()}.tmp`);
   try {
     await writeFile(temporary, `${JSON.stringify(state, null, 2)}\n`, { encoding: 'utf8', flag: 'wx' });
     await operations.rename(temporary, destination);
   } finally {
     await rm(temporary, { force: true });
   }
+}
+
+function legacyStateDiagnostic(code: 'legacy_state_imported' | 'legacy_state_present'): Diagnostic {
+  return {
+    code,
+    message: code === 'legacy_state_imported'
+      ? 'Validated repository migration state was copied to external storage; review and remove the retained .design-context directory manually.'
+      : 'A matching repository migration state is still present; review and remove the retained .design-context directory manually.',
+    retryable: false,
+    nodeId: null,
+  };
+}
+
+function normalizeOptions(options: MigrationOptions | MigrationWriteOperations): MigrationOptions {
+  return 'rename' in options ? { operations: options } : options;
+}
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  if (!isRecord(value)) return JSON.stringify(value);
+  return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(',')}}`;
 }
 
 function rejectCredentialData(value: unknown): void {

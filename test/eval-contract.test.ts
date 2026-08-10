@@ -23,12 +23,12 @@ async function cases(): Promise<EvalCase[]> {
 }
 
 describe('cross-Agent evaluation contract', () => {
-  it('covers the eleven established scenarios plus provider selection', async () => {
+  it('covers established scenarios plus provider selection and repository cleanliness', async () => {
     expect(new Set((await cases()).map(({ name }) => name))).toEqual(new Set([
       'missing-required-input', 'non-multimodal-agent', 'new-page', 'initial-migration',
       'continuation', 'adoption-with-user-reference', 'bounded-large-repository',
       'playwright-mcp-fallback', 'documented-login', 'mfa-user-handoff',
-      'visual-pass-business-fail', 'provider-selection',
+      'visual-pass-business-fail', 'provider-selection', 'repository-cleanliness',
     ]));
   });
 
@@ -59,6 +59,7 @@ describe('cross-Agent evaluation contract', () => {
       expect(commands.some((command) => command.includes('screenshot real target page') && !command.startsWith('design-context ')), value.name).toBe(true);
       expect(commands.some((command) => command.includes('multimodal compare source and actual screenshots')), value.name).toBe(true);
       expect(commands.some((command) => command.startsWith('design-context ') && /render|score|compare/u.test(command)), value.name).toBe(false);
+      expect(commands).toContain('git diff --cached --name-only');
     }
   });
 
@@ -75,6 +76,20 @@ describe('cross-Agent evaluation contract', () => {
     expect(values['mfa-user-handoff']?.expectedState.credentialRequest).toBe('none');
     expect(values['visual-pass-business-fail']?.expectedState.humanHandoff).toBe('forbidden');
     expect(values['provider-selection']?.expectedState.selection).toBe('registry-url-match');
+    expect(values['repository-cleanliness']?.expectedState.repositoryPollution).toBe('none');
+    expect(values['repository-cleanliness']?.expectedState.stagedGeneratedFiles).toBe('none');
+  });
+
+  it('uses external workspace commands and never stages generated files', async () => {
+    const serialized = JSON.stringify(await cases());
+    expect(serialized).not.toContain('git add -A');
+    for (const value of await cases()) {
+      if (value.name === 'missing-required-input') continue;
+      expect(value.expectedCommands).toContain('design-context workspace resolve');
+      if (value.expectedCommands.some((command) => command.startsWith('design-context prepare'))) {
+        expect(value.expectedCommands).toContain('design-context prepare --target');
+      }
+    }
   });
 
   it('keeps runbook provider-neutral and expected reports case-specific', async () => {

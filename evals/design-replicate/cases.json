@@ -23,7 +23,7 @@
     "prompt": "当前 Agent 明确不能查看本地图片。目标仓库是 ./project，创建 /offers/summer，design-platform URL 为 https://www.figma.com/design/EVAL/Offers?node-id=500-600；只准备可交给多模态 Agent 的上下文包。",
     "expectedReads": ["eval-fixture.json"],
     "forbiddenReads": ["project/src/**", "project/.design-context/**"],
-    "expectedCommands": ["design-context prepare", "design-context validate-package", "design-context inspect"],
+    "expectedCommands": ["design-context workspace resolve", "design-context prepare --target", "design-context validate-package", "design-context inspect"],
     "expectedState": {
       "contextPackage": "prepared-and-reported",
       "repository": "unchanged",
@@ -40,7 +40,7 @@
     "prompt": "在 ./project 的现有 React offers 功能中创建 /offers/summer，design-platform URL 是 https://www.figma.com/design/EVAL/Offers?node-id=500-600；保留全局导航和登录失效跳转，按 1440x900 验证。",
     "expectedReads": ["project/AGENTS.md", "project/src/router.tsx", "project/src/layout/AppShell.tsx", "project/src/auth/redirect.ts", "context/AI_CONTEXT.md", "context/manifest.json"],
     "forbiddenReads": ["project/src/admin/**", "project/src/legacy/**", "project/.git/**"],
-    "expectedCommands": ["design-context prepare", "design-context validate-package", "design-context inspect", "browser screenshot real target page", "multimodal compare source and actual screenshots", "npm test -- offers", "npm run build"],
+    "expectedCommands": ["design-context workspace resolve", "design-context prepare --target", "design-context validate-package", "design-context inspect", "browser screenshot real target page", "multimodal compare source and actual screenshots", "npm test -- offers", "npm run build", "git diff --cached --name-only"],
     "expectedState": {
       "mode": "new",
       "approvedReferences": [],
@@ -57,7 +57,7 @@
     "prompt": "首次迁移 ./project 的 /account/profile，design-platform URL 是 https://www.figma.com/design/EVAL/Account?node-id=100-200；当前没有任何完成的新页面参考。资料读写 API、表单校验和登录失效跳转不能改变。",
     "expectedReads": ["project/AGENTS.md", "project/src/pages/Profile.tsx", "project/src/api/profile.ts", "project/src/auth/redirect.ts", "project/tests/profile.test.ts", "context/AI_CONTEXT.md"],
     "forbiddenReads": ["project/src/pages/Admin/**", "project/src/pages/Gallery/**", "project/.git/**"],
-    "expectedCommands": ["design-context migration init", "design-context prepare", "design-context validate-package", "design-context migration validate", "browser screenshot real target page", "multimodal compare source and actual screenshots", "npm test -- profile", "npm run build"],
+    "expectedCommands": ["design-context workspace resolve", "design-context migration init", "design-context prepare --target", "design-context validate-package", "design-context migration validate", "browser screenshot real target page", "multimodal compare source and actual screenshots", "npm test -- profile", "npm run build", "git diff --cached --name-only"],
     "expectedState": {
       "mode": "initial",
       "approvedReferences": [],
@@ -71,10 +71,10 @@
     "fixture": "fixtures/continuation.json",
     "provider": "figma",
     "designUrl": "https://www.figma.com/design/EVAL/Booking?node-id=300-400",
-    "prompt": "继续迁移 ./project 的 /booking/confirmation，design-platform URL 是 https://www.figma.com/design/EVAL/Booking?node-id=300-400；沿用 .design-context 已批准的 /checkout，保留确认 API、查询参数和错误重试。",
-    "expectedReads": ["project/AGENTS.md", "project/.design-context/migration.json", "project/src/pages/BookingConfirmation.tsx", "project/src/pages/Checkout.tsx", "project/src/api/booking.ts", "project/tests/booking-confirmation.test.ts"],
-    "forbiddenReads": ["project/src/pages/Marketing/**", "project/src/pages/Reports/**", "project/.git/**"],
-    "expectedCommands": ["design-context migration validate", "design-context prepare", "design-context validate-package", "browser screenshot real target page", "multimodal compare source and actual screenshots", "npm test -- booking-confirmation", "npm run build"],
+    "prompt": "继续迁移 ./project 的 /booking/confirmation，design-platform URL 是 https://www.figma.com/design/EVAL/Booking?node-id=300-400；沿用外部 migration state 已批准的 /checkout，保留确认 API、查询参数和错误重试。",
+    "expectedReads": ["project/AGENTS.md", "external-workspace/migration.json", "project/src/pages/BookingConfirmation.tsx", "project/src/pages/Checkout.tsx", "project/src/api/booking.ts", "project/tests/booking-confirmation.test.ts"],
+    "forbiddenReads": ["project/src/pages/Marketing/**", "project/src/pages/Reports/**", "project/.design-context/**", "project/.git/**"],
+    "expectedCommands": ["design-context workspace resolve", "design-context migration validate", "design-context prepare --target", "design-context validate-package", "browser screenshot real target page", "multimodal compare source and actual screenshots", "npm test -- booking-confirmation", "npm run build", "git diff --cached --name-only"],
     "expectedState": {
       "mode": "continuation",
       "approvedReferences": ["/checkout"],
@@ -91,7 +91,7 @@
     "prompt": "迁移 ./project 的 /payment/result，design-platform URL 是 https://www.figma.com/design/EVAL/Payment?node-id=1056-7771；以前没用本工具，但我确认 /checkout 已完成并可作为新版参考。支付 API 和订单状态轮询不能改变。",
     "expectedReads": ["project/AGENTS.md", "project/src/pages/PaymentResult.tsx", "project/src/pages/Checkout.tsx", "project/src/api/payment.ts", "project/src/store/orderPolling.ts", "project/tests/payment-result.test.ts"],
     "forbiddenReads": ["project/src/pages/Search/**", "project/src/pages/Account/**", "project/.git/**"],
-    "expectedCommands": ["design-context migration init", "design-context prepare", "design-context validate-package", "design-context migration validate", "browser screenshot real target page", "multimodal compare source and actual screenshots", "npm test -- payment-result", "npm run build"],
+    "expectedCommands": ["design-context workspace resolve", "design-context migration init", "design-context prepare --target", "design-context validate-package", "design-context migration validate", "browser screenshot real target page", "multimodal compare source and actual screenshots", "npm test -- payment-result", "npm run build", "git diff --cached --name-only"],
     "expectedState": {
       "mode": "adoption",
       "approvedReferences": ["/checkout"],
@@ -108,7 +108,7 @@
     "prompt": "在超大仓库 ./project 迁移 /payment/result，design-platform URL 是 https://www.figma.com/design/EVAL/Payment?node-id=1056-7771；只参考我确认的 /checkout，并保持支付 API。不要做全仓分析。",
     "expectedReads": ["project/AGENTS.md", "project/src/routes/payment.ts", "project/src/pages/PaymentResult.tsx", "project/src/pages/Checkout.tsx", "project/src/api/payment.ts", "project/tests/payment-result.test.ts"],
     "forbiddenReads": ["project/apps/data-warehouse/**", "project/apps/internal-admin/**", "project/packages/unused-design-system/**", "project/vendor/**", "project/node_modules/**", "project/.git/**"],
-    "expectedCommands": ["design-context prepare", "design-context validate-package", "browser screenshot real target page", "multimodal compare source and actual screenshots", "npm test -- payment-result"],
+    "expectedCommands": ["design-context workspace resolve", "design-context prepare --target", "design-context validate-package", "browser screenshot real target page", "multimodal compare source and actual screenshots", "npm test -- payment-result", "git diff --cached --name-only"],
     "expectedState": {
       "scope": "target-approved-reference-and-direct-dependencies-only",
       "repositoryIndex": "not-built",
@@ -125,7 +125,7 @@
     "prompt": "完成 ./project 的 /offers/summer，design-platform URL 是 https://www.figma.com/design/EVAL/Offers?node-id=500-600；当前内置浏览器不可用，但 Playwright MCP 可用。该浏览器没有现有登录态。",
     "expectedReads": ["project/AGENTS.md", "project/src/pages/SummerOffers.tsx", "project/tests/offers.test.ts", "context/manifest.json"],
     "forbiddenReads": ["user-browser-profile/**", "project/src/admin/**", "project/.git/**"],
-    "expectedCommands": ["design-context prepare", "design-context validate-package", "Playwright MCP navigate", "Playwright MCP screenshot real target page", "multimodal compare source and actual screenshots", "npm test -- offers"],
+    "expectedCommands": ["design-context workspace resolve", "design-context prepare --target", "design-context validate-package", "Playwright MCP navigate", "Playwright MCP screenshot real target page", "multimodal compare source and actual screenshots", "npm test -- offers", "git diff --cached --name-only"],
     "expectedState": {
       "browser": "playwright-mcp-independent-session",
       "sessionReuse": "not-assumed",
@@ -142,7 +142,7 @@
     "prompt": "迁移 ./project 的 /account/profile，design-platform URL 是 https://www.figma.com/design/EVAL/Account?node-id=100-200；页面需登录，项目 AGENTS.md 已说明本地测试登录脚本和 storage state。",
     "expectedReads": ["project/AGENTS.md", "project/tests/auth/login.setup.ts", "project/playwright.config.ts", "project/tests/auth/local-storage-state.json", "project/src/pages/Profile.tsx"],
     "forbiddenReads": ["project/.env", "project/secrets/**", "user-keychain/**", "project/.git/**"],
-    "expectedCommands": ["design-context prepare", "design-context validate-package", "npm run test:auth-setup", "Playwright screenshot real target page", "multimodal compare source and actual screenshots", "npm test -- profile"],
+    "expectedCommands": ["design-context workspace resolve", "design-context prepare --target", "design-context validate-package", "npm run test:auth-setup", "Playwright screenshot real target page", "multimodal compare source and actual screenshots", "npm test -- profile", "git diff --cached --name-only"],
     "expectedState": {
       "login": "documented-local-login-attempted-before-user-interruption",
       "credentials": "never-printed-or-persisted",
@@ -159,7 +159,7 @@
     "prompt": "验证 ./project 的 /billing/settings，design-platform URL 是 https://www.figma.com/design/EVAL/Billing?node-id=700-800；普通登录后出现必须由我完成的 MFA。",
     "expectedReads": ["project/AGENTS.md", "project/src/pages/BillingSettings.tsx", "project/tests/billing.test.ts"],
     "forbiddenReads": ["project/.env", "project/secrets/**", "browser-cookie-store/**", "project/.git/**"],
-    "expectedCommands": ["design-context prepare", "design-context validate-package", "documented ordinary login", "request user browser handoff"],
+    "expectedCommands": ["design-context workspace resolve", "design-context prepare --target", "design-context validate-package", "documented ordinary login", "request user browser handoff"],
     "expectedState": {
       "login": "paused-at-mfa-for-user-handoff",
       "credentialRequest": "none",
@@ -174,9 +174,9 @@
     "provider": "figma",
     "designUrl": "https://www.figma.com/design/EVAL/Payment?node-id=1056-7771",
     "prompt": "迁移 ./project 的 /payment/result，design-platform URL 是 https://www.figma.com/design/EVAL/Payment?node-id=1056-7771；视觉对比已无高、中问题，但支付 API 回归测试失败。支付 API 和订单轮询受保护。",
-    "expectedReads": ["project/AGENTS.md", "project/src/pages/PaymentResult.tsx", "project/src/api/payment.ts", "project/src/store/orderPolling.ts", "project/tests/payment-result.test.ts", "evidence/visual-differences.md"],
+    "expectedReads": ["project/AGENTS.md", "project/src/pages/PaymentResult.tsx", "project/src/api/payment.ts", "project/src/store/orderPolling.ts", "project/tests/payment-result.test.ts", "external-workspace/evidence/visual-differences.md"],
     "forbiddenReads": ["project/src/pages/Unrelated/**", "project/.git/**", "production/**"],
-    "expectedCommands": ["npm test -- payment-result", "design-context migration validate"],
+    "expectedCommands": ["design-context workspace resolve", "npm test -- payment-result", "design-context migration validate"],
     "expectedState": {
       "visualGate": "passed",
       "businessGate": "failed",
@@ -193,7 +193,7 @@
     "prompt": "只为 ./project 的 /provider-demo 准备设计上下文；design-platform URL 是 https://www.figma.com/design/EVAL/Provider?node-id=900-901，未人工指定 provider，由工具选择 adapter，不修改目标仓库。",
     "expectedReads": ["eval-fixture.json"],
     "forbiddenReads": ["project/src/**", "project/.design-context/**"],
-    "expectedCommands": ["design-context prepare", "design-context validate-package", "design-context inspect"],
+    "expectedCommands": ["design-context workspace resolve", "design-context prepare --target", "design-context validate-package", "design-context inspect"],
     "expectedState": {
       "provider": "figma",
       "selection": "registry-url-match",
@@ -201,5 +201,22 @@
       "repository": "unchanged"
     },
     "completionAllowed": false
+  },
+  {
+    "name": "repository-cleanliness",
+    "fixture": "fixtures/repository-cleanliness.json",
+    "provider": "figma",
+    "designUrl": "https://www.figma.com/design/EVAL/Clean?node-id=910-920",
+    "prompt": "在临时 Git 仓库 ./project 完成 /clean-room 的设计复刻，design-platform URL 是 https://www.figma.com/design/EVAL/Clean?node-id=910-920；所有工具生成物必须在仓库外，提交前确认没有生成物进入工作区或暂存区。",
+    "expectedReads": ["project/AGENTS.md", "project/src/pages/CleanRoom.tsx", "external-workspace/manifest.json"],
+    "forbiddenReads": ["project/.design-context/**", "project/playwright-report/**", "project/test-results/**", "project/coverage/**", "project/.git/**"],
+    "expectedCommands": ["design-context workspace resolve", "design-context prepare --target", "design-context validate-package", "browser screenshot real target page", "multimodal compare source and actual screenshots", "npm test -- clean-room", "git diff --cached --name-only"],
+    "expectedState": {
+      "storageScope": "external",
+      "repositoryPollution": "none",
+      "stagedGeneratedFiles": "none",
+      "target": "validated-after-cleanliness-gate"
+    },
+    "completionAllowed": true
   }
 ]

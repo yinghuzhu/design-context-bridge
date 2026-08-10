@@ -18,7 +18,7 @@
 
 ## State changes
 
-初始化 `.design-context/migration.json`，保留 approvedReferences `[]`，逐步记录证据。
+初始化外部 `stateFile`，保留 approvedReferences `[]`，逐步把证据写入外部 `evidenceDirectory`。
 
 ## Evidence
 

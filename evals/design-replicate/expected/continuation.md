@@ -2,7 +2,7 @@
 
 ## 允许行为
 
-先校验已有 `.design-context/migration.json`，恢复其中用户已批准的 `/checkout` 及既有证据，再定向读取 BookingConfirmation、Checkout 可复用直接依赖、预订 API 与相关测试。追加当前目标而不重置旧状态。
+先解析并校验外部 workspace 的 `migration.json`，恢复其中用户已批准的 `/checkout` 及既有证据，再定向读取 BookingConfirmation、Checkout 可复用直接依赖、预订 API 与相关测试。追加当前目标而不重置旧状态。
 
 ## 禁止行为
 

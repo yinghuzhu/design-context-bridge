@@ -1,0 +1,7 @@
+{
+  "kind": "abstract-eval-fixture",
+  "capabilities": {"multimodal": true, "browser": true},
+  "repository": {"git": true, "initialStatus": "clean", "target": "/clean-room", "directFiles": ["src/pages/CleanRoom.tsx"]},
+  "workspace": {"storageScope": "external", "state": "valid", "package": "complete"},
+  "simulatedOutcomes": {"visual": "pass", "business": "pass", "gitStatus": "business-files-only", "stagedGeneratedFiles": []}
+}

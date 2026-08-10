@@ -18,7 +18,7 @@
 
 ## State changes
 
-实现后记录 target；视觉和业务均通过后才写 validated。
+先解析外部 workspace；实现后记录 target，视觉和业务均通过后才在外部 `stateFile` 写 validated。
 
 ## Evidence
 

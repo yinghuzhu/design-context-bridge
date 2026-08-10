@@ -5,10 +5,12 @@ import { fileURLToPath } from 'node:url';
 import { generateContextFiles as generateContextFilesDefault } from './core/context.js';
 import { preparePackage as preparePackageDefault } from './core/downloader.js';
 import {
+  importRepositoryMigrationState as importRepositoryMigrationStateDefault,
   initializeMigrationState as initializeMigrationStateDefault,
   loadMigrationState as loadMigrationStateDefault,
-  migrationStatePath,
+  MigrationStateConflictError,
 } from './core/migration.js';
+import type { MigrationOperationResult } from './core/migration.js';
 import type { Diagnostic, PackageValidation } from './core/models.js';
 import { validatePackage as validatePackageDefault } from './core/package.js';
 import { PackageRenderError, renderPackage as renderPackageDefault } from './core/renderer.js';
@@ -16,6 +18,11 @@ import { FigmaAdapter, type FigmaClientContract } from './sources/figma/adapter.
 import { FigmaDownloadSizeError, FigmaHttpError, FigmaNetworkError } from './sources/figma/client.js';
 import { SourceRegistry } from './sources/registry.js';
 import { VERSION } from './version.js';
+import {
+  resolveOutputLocation as resolveOutputLocationDefault,
+  resolveWorkspace as resolveWorkspaceDefault,
+  type WorkspacePaths,
+} from './core/workspace.js';
 
 export const EXIT_OK = 0;
 export const EXIT_INVALID_PACKAGE = 20;
@@ -29,19 +36,28 @@ const HELP = `design-context
 Prepare deterministic design-platform context packages for multimodal Agents.
 
 Usage:
-  design-context prepare URL --output DIR [--provider NAME] [--format png|jpg|svg] [--scale N] [--force|--refresh] [--json]
+  design-context workspace resolve TARGET_DIR [--json]
+  design-context prepare URL (--target TARGET_DIR | --output DIR [--allow-in-repo]) [--provider NAME] [--format png|jpg|svg] [--scale N] [--force|--refresh] [--json]
   design-context inspect PACKAGE [--json]
   design-context validate-package PACKAGE [--json]
   design-context render PACKAGE [--output FILE] [--compare] [--json]
   design-context status PACKAGE [--json]
   design-context migration init TARGET_DIR [--json]
   design-context migration validate TARGET_DIR [--json]
+  design-context migration import TARGET_DIR --from-repository [--json]
 `;
 
 export class MissingTokenError extends Error {
   constructor() {
     super('A provider credential is required when no matching cache is available');
     this.name = 'MissingTokenError';
+  }
+}
+
+export class InRepositoryOutputError extends Error {
+  constructor() {
+    super('Refusing to write generated design context inside a Git worktree. Use --target for external storage, or add --allow-in-repo only after accepting the commit risk.');
+    this.name = 'InRepositoryOutputError';
   }
 }
 
@@ -55,6 +71,9 @@ export interface CliDependencies {
   renderPackage?: typeof renderPackageDefault;
   initializeMigrationState?: typeof initializeMigrationStateDefault;
   loadMigrationState?: typeof loadMigrationStateDefault;
+  importRepositoryMigrationState?: typeof importRepositoryMigrationStateDefault;
+  resolveWorkspace?: typeof resolveWorkspaceDefault;
+  resolveOutputLocation?: typeof resolveOutputLocationDefault;
   registry?: SourceRegistry;
 }
 
@@ -106,6 +125,7 @@ export async function main(
 
 async function dispatch(argv: readonly string[], dependencies: CliDependencies): Promise<[Envelope, number]> {
   const command = argv[0];
+  if (command === 'workspace') return workspaceCommand(argv.slice(1), dependencies);
   if (command === 'prepare') return prepareCommand(argv.slice(1), dependencies);
   if (['inspect', 'validate-package', 'status'].includes(command ?? '')) {
     const parsed = parseOptions(argv.slice(1), new Set(), new Set());
@@ -133,12 +153,39 @@ async function dispatch(argv: readonly string[], dependencies: CliDependencies):
 async function prepareCommand(argv: readonly string[], dependencies: CliDependencies): Promise<[Envelope, number]> {
   const parsed = parseOptions(
     argv,
-    new Set(['--output', '--provider', '--format', '--scale']),
-    new Set(['--force', '--refresh']),
+    new Set(['--target', '--output', '--provider', '--format', '--scale']),
+    new Set(['--force', '--refresh', '--allow-in-repo']),
   );
   requireCount(parsed.positional, 1, 'prepare requires one design URL');
-  const outputRoot = parsed.values['--output'];
-  if (outputRoot === undefined) throw new Error('prepare requires --output DIR');
+  const targetDirectory = parsed.values['--target'];
+  const requestedOutput = parsed.values['--output'];
+  if ((targetDirectory === undefined) === (requestedOutput === undefined)) {
+    throw new Error('prepare requires exactly one of --target TARGET_DIR or --output DIR');
+  }
+  if (parsed.flags.has('--allow-in-repo') && requestedOutput === undefined) {
+    throw new Error('--allow-in-repo is only valid with --output');
+  }
+  let outputRoot: string;
+  let storageData: Record<string, unknown>;
+  const storageDiagnostics: Diagnostic[] = [];
+  if (targetDirectory !== undefined) {
+    const workspace = await (dependencies.resolveWorkspace ?? resolveWorkspaceDefault)(targetDirectory, { env: dependencies.env });
+    outputRoot = workspace.packagesDirectory;
+    storageData = workspaceData(workspace);
+  } else {
+    const output = await (dependencies.resolveOutputLocation ?? resolveOutputLocationDefault)(requestedOutput ?? '');
+    if (output.storageScope === 'in-repo' && !parsed.flags.has('--allow-in-repo')) throw new InRepositoryOutputError();
+    outputRoot = output.outputDirectory;
+    storageData = { outputDirectory: output.outputDirectory, gitRoot: output.gitRoot, storageScope: output.storageScope };
+    if (output.storageScope === 'in-repo') {
+      storageDiagnostics.push({
+        code: 'in_repo_storage_enabled',
+        message: 'Generated design context is being written inside a Git worktree and may be committed accidentally.',
+        retryable: false,
+        nodeId: null,
+      });
+    }
+  }
   const format = parsed.values['--format'] ?? 'png';
   if (!['png', 'jpg', 'svg'].includes(format)) throw new Error(`Unsupported export format: ${format}`);
   const scale = Number(parsed.values['--scale'] ?? '2');
@@ -156,26 +203,46 @@ async function prepareCommand(argv: readonly string[], dependencies: CliDependen
     },
   );
   const context = await (dependencies.generateContextFiles ?? generateContextFilesDefault)(result.packageDirectory);
-  return validationEnvelope('prepare', result.validation, {
+  const validation = { ...result.validation, diagnostics: [...storageDiagnostics, ...result.validation.diagnostics] };
+  return validationEnvelope('prepare', validation, {
     packageDirectory: result.packageDirectory,
     cacheHit: result.cacheHit,
     provider: result.provider,
     contextFiles: [context.context, context.styles, context.components],
+    ...storageData,
   });
+}
+
+async function workspaceCommand(argv: readonly string[], dependencies: CliDependencies): Promise<[Envelope, number]> {
+  const operation = argv[0];
+  const parsed = parseOptions(argv.slice(1), new Set(), new Set());
+  requireCount(parsed.positional, 1, 'workspace resolve requires one target directory');
+  if (operation !== 'resolve') throw new Error(`Unknown workspace command: ${operation ?? ''}`);
+  const workspace = await (dependencies.resolveWorkspace ?? resolveWorkspaceDefault)(parsed.positional[0] ?? '', { env: dependencies.env });
+  return [successEnvelope('workspace.resolve', 'resolved', workspaceData(workspace)), EXIT_OK];
 }
 
 async function migrationCommand(argv: readonly string[], dependencies: CliDependencies): Promise<[Envelope, number]> {
   const operation = argv[0];
-  const parsed = parseOptions(argv.slice(1), new Set(), new Set());
+  const parsed = parseOptions(argv.slice(1), new Set(), new Set(['--from-repository']));
   requireCount(parsed.positional, 1, 'migration command requires one target directory');
   const targetDirectory = resolve(parsed.positional[0] ?? '');
   if (operation === 'init') {
-    const state = await (dependencies.initializeMigrationState ?? initializeMigrationStateDefault)(targetDirectory);
-    return [successEnvelope('migration.init', 'initialized', { targetDirectory, stateFile: migrationStatePath(targetDirectory), schemaVersion: state.schemaVersion }), EXIT_OK];
+    if (parsed.flags.size > 0) throw new Error('migration init does not accept flags');
+    const result = await (dependencies.initializeMigrationState ?? initializeMigrationStateDefault)(targetDirectory, { env: dependencies.env });
+    return migrationEnvelope('migration.init', 'initialized', result);
   }
   if (operation === 'validate') {
-    const state = await (dependencies.loadMigrationState ?? loadMigrationStateDefault)(targetDirectory);
-    return [successEnvelope('migration.validate', 'valid', { targetDirectory, stateFile: migrationStatePath(targetDirectory), schemaVersion: state.schemaVersion }), EXIT_OK];
+    if (parsed.flags.size > 0) throw new Error('migration validate does not accept flags');
+    const result = await (dependencies.loadMigrationState ?? loadMigrationStateDefault)(targetDirectory, { env: dependencies.env });
+    return migrationEnvelope('migration.validate', 'valid', result);
+  }
+  if (operation === 'import') {
+    if (!parsed.flags.has('--from-repository') || parsed.flags.size !== 1) {
+      throw new Error('migration import requires --from-repository');
+    }
+    const result = await (dependencies.importRepositoryMigrationState ?? importRepositoryMigrationStateDefault)(targetDirectory, { env: dependencies.env });
+    return migrationEnvelope('migration.import', 'imported', result);
   }
   throw new Error(`Unknown migration command: ${operation ?? ''}`);
 }
@@ -231,8 +298,8 @@ function validationEnvelope(command: string, validation: PackageValidation, data
   return [{ ok, command, status: validation.status, data, diagnostics: validation.diagnostics.map(sanitizeDiagnostic) }, ok ? EXIT_OK : EXIT_INVALID_PACKAGE];
 }
 
-function successEnvelope(command: string, status: string, data: Record<string, unknown>): Envelope {
-  return { ok: true, command, status, data, diagnostics: [] };
+function successEnvelope(command: string, status: string, data: Record<string, unknown>, diagnostics: Diagnostic[] = []): Envelope {
+  return { ok: true, command, status, data, diagnostics: diagnostics.map(sanitizeDiagnostic) };
 }
 
 function errorEnvelope(command: string, error: unknown): [Envelope, number] {
@@ -246,6 +313,12 @@ function errorEnvelope(command: string, error: unknown): [Envelope, number] {
     message = 'FIGMA_TOKEN is required when no matching package is available in cache.';
     exitCode = EXIT_AUTH;
     status = 'error';
+  } else if (error instanceof InRepositoryOutputError) {
+    code = 'in_repo_output_refused';
+    message = error.message;
+  } else if (error instanceof MigrationStateConflictError) {
+    code = 'migration_state_conflict';
+    message = error.message;
   } else if (error instanceof FigmaHttpError) {
     code = error.kind === 'auth' ? 'source_auth_failed' : 'source_api_failed';
     message = error.kind === 'auth' ? 'The design source rejected its configured credential.' : 'The design source API request failed.';
@@ -302,7 +375,31 @@ function sanitizeDiagnostic(value: Diagnostic): Diagnostic {
 
 function commandName(argv: readonly string[]): string {
   if (argv[0] === 'migration') return `migration.${argv[1] ?? 'unknown'}`;
+  if (argv[0] === 'workspace') return `workspace.${argv[1] ?? 'unknown'}`;
   return argv[0] ?? 'unknown';
+}
+
+function workspaceData(workspace: WorkspacePaths): Record<string, unknown> {
+  return {
+    targetDirectory: workspace.targetDirectory,
+    gitRoot: workspace.gitRoot,
+    workspaceId: workspace.workspaceId,
+    identitySource: workspace.identitySource,
+    workspaceIdFile: workspace.workspaceIdFile,
+    displayName: workspace.displayName,
+    workspaceMetadataFile: workspace.workspaceMetadataFile,
+    stateFile: workspace.stateFile,
+    packagesDirectory: workspace.packagesDirectory,
+    evidenceDirectory: workspace.evidenceDirectory,
+    storageScope: workspace.storageScope,
+  };
+}
+
+function migrationEnvelope(command: string, status: string, result: MigrationOperationResult): [Envelope, number] {
+  return [successEnvelope(command, status, {
+    ...workspaceData(result.workspace),
+    schemaVersion: result.state.schemaVersion,
+  }, result.diagnostics), EXIT_OK];
 }
 
 function isErrno(error: unknown): error is NodeJS.ErrnoException {

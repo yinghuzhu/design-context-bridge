@@ -39,15 +39,17 @@ describe('repository distribution', () => {
     const readme = await readFile(resolve(ROOT, 'README.md'), 'utf8');
     const template = await readFile(resolve(ROOT, 'templates', 'design-context.gitignore'), 'utf8');
 
-    for (const required of ['./scripts/install.sh', 'git pull --ff-only', '--refresh', '~/.local/bin', '.design-context/packages/', '.design-context/evidence/']) {
+    for (const required of ['./scripts/install.sh', 'git pull --ff-only', '--refresh', '~/.local/bin', 'design-context workspace resolve', '--target "$TARGET_DIR"', 'DESIGN_CONTEXT_STATE_HOME', 'DESIGN_CONTEXT_CACHE_HOME', 'legacy/manual in-repository mode', 'git rev-parse --absolute-git-dir', 'design-context-bridge/workspace-id', '<workspaceId>--<repository-name>', 'identitySource', '非 Git 项目改名']) {
       expect(readme).toContain(required);
     }
-    for (const forbidden of ['npm install -g', 'npx design-context-bridge', 'npm publish']) {
+    for (const forbidden of ['npm install -g', 'npx design-context-bridge', 'npm publish', '--output .design-context/packages']) {
       expect(readme).not.toContain(forbidden);
     }
     expect(template).toContain('.design-context/packages/');
     expect(template).toContain('.design-context/evidence/');
-    expect(template).not.toContain('migration.json');
+    expect(template).toContain('.design-context/migration.json');
+    expect(template).toContain('legacy/manual in-repository mode');
+    expect(template).toContain('not the default storage');
   });
 
   it('marks obsolete implementation plans as historical', async () => {
@@ -83,6 +85,28 @@ describe('repository distribution', () => {
     await access(join(result.home, '.claude', 'skills', 'design-replicate', 'SKILL.md'));
     const version = await execute(join(result.binDirectory, 'design-context'), ['--version']);
     expect(version.stdout).toBe('0.2.0\n');
+
+    const target = join(result.root, 'target-repository');
+    await mkdir(target);
+    await execute('git', ['init', '--quiet', target]);
+    const runtimeEnvironment = {
+      ...process.env,
+      DESIGN_CONTEXT_STATE_HOME: join(result.root, 'external-state'),
+      DESIGN_CONTEXT_CACHE_HOME: join(result.root, 'external-cache'),
+    };
+    const workspace = await execute(join(result.binDirectory, 'design-context'), ['workspace', 'resolve', target, '--json'], { env: runtimeEnvironment });
+    const migration = await execute(join(result.binDirectory, 'design-context'), ['migration', 'init', target, '--json'], { env: runtimeEnvironment });
+    expect(JSON.parse(workspace.stdout)).toMatchObject({
+      ok: true,
+      data: {
+        identitySource: 'git-metadata',
+        workspaceIdFile: expect.stringContaining('design-context-bridge/workspace-id'),
+        storageScope: 'external',
+      },
+    });
+    expect(JSON.parse(migration.stdout)).toMatchObject({ ok: true, data: { storageScope: 'external' } });
+    expect((await execute('git', ['-C', target, 'status', '--porcelain'])).stdout).toBe('');
+    await expect(access(join(target, '.design-context'))).rejects.toThrow();
   }, 30_000);
 
   it('updates an owned installation without retaining stale runtime files', async () => {
