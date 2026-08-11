@@ -23,6 +23,9 @@ describe('design-replicate Skill contract', () => {
     expect(skill).toContain('design-context workspace resolve');
     expect(skill).toContain('外部 workspace');
     expect(skill).toContain('design-context prepare');
+    expect(skill).toContain('design_scope_suspicious');
+    expect(skill).toContain('读取或修改目标仓库前');
+    expect(skill).toContain('只阻塞当前 unit');
     expect(skill).toContain('Playwright MCP');
     expect(skill).toContain('不得扫描整个仓库');
     expect(skill).toContain('视觉通过但业务失败');
@@ -58,6 +61,10 @@ describe('design-replicate Skill contract', () => {
     expect(context).toContain('--target "$TARGET_DIR"');
     expect(context).toContain('storageScope');
     expect(context).toContain('--allow-in-repo');
+    expect(context).toContain('design_scope_suspicious');
+    expect(context).toContain('retryable: false');
+    expect(context).toContain('不得使用 `--refresh`');
+    expect(context).toContain('Frame、Group、Section 或 Component');
   });
 
   it('requires explicit inputs and forbids unbounded repository discovery', async () => {
@@ -69,6 +76,8 @@ describe('design-replicate Skill contract', () => {
     expect(input).toContain('不得扫描或修改');
     expect(input).toContain('禁止默认遍历全部页面、完整组件库或全部 Git 历史');
     expect(input).toContain('外部 migration state');
+    expect(input).toContain('设计范围');
+    expect(input).toContain('所选内容的链接');
   });
 
   it('covers migration modes, auth fallback, and visual plus business gates', async () => {
@@ -102,6 +111,10 @@ describe('design-replicate Skill contract', () => {
     expect(validation).toContain('必须验证');
     expect(validation).toContain('视觉通过但业务失败');
     expect(validation).toContain('人工验收');
+    expect(validation).toContain('用户描述');
+    expect(validation).toContain('读取或修改目标仓库前');
+    expect(validation).toContain('不得静默选择父节点、兄弟节点');
+    expect(validation).toContain('只阻塞引用该设计来源的当前 unit');
     for (const generated of ['.design-context/', 'playwright-report/', 'test-results/', 'coverage/', '原始 JSON', '临时证据']) expect(validation).toContain(generated);
     expect(validation).toContain('git diff --cached --name-only');
     expect(validation).toContain('停止提交');

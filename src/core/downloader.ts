@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path';
 import type { Diagnostic, PackageValidation } from './models.js';
 import {
   buildFingerprint,
+  diagnoseDesignScope,
   publishStaging,
   type PackageManifestV1,
   validatePackage,
@@ -62,7 +63,10 @@ export async function preparePackage(
       throw new Error(`Root screenshot download failed for node ${target.nodeId}`);
     }
 
-    const diagnostics = prepared.diagnostics.map(sanitizeDiagnostic);
+    const diagnostics = [
+      ...prepared.diagnostics,
+      ...diagnoseDesignScope(prepared.design),
+    ].map(sanitizeDiagnostic);
     const files: PackageManifestV1['files'] = {};
     for (const [index, asset] of prepared.assets.entries()) {
       const relativePath = `assets/${String(index + 1).padStart(3, '0')}_${safeName(asset.name)}_${safeName(asset.id.replaceAll(':', '-'))}.${format}`;

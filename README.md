@@ -187,7 +187,7 @@ design-context prepare "$DESIGN_URL" \
 - screenshot：视觉真值；实际后缀由 manifest 声明。
 - renderer 输出：仅用于辅助观察，不能作为视觉通过证据。
 
-状态为 `complete`、`partial` 或 `invalid`。根截图或核心 JSON 失败不会发布；非关键资产失败可发布 partial。下载在同父目录 staging 中完成，校验后原子替换，失败保留旧缓存。
+状态为 `complete`、`partial` 或 `invalid`。根截图或核心 JSON 失败不会发布；非关键资产失败可发布 partial。根节点只是无子节点、无文字且无可导出资产的基础图形时也返回 `partial` 和不可重试的 `design_scope_suspicious`，避免把背景图层误认为完整页面或弹窗。validate-package 会重新检查旧缓存。下载在同父目录 staging 中完成，校验后原子替换，失败保留旧缓存。
 
 ## Agent 工作边界
 
@@ -196,13 +196,15 @@ design-context prepare "$DESIGN_URL" \
 推荐流程：
 
 1. `design-context workspace resolve`，再使用 `prepare --target`、`validate-package` 和 `inspect`。
-2. 查看 manifest screenshot，再按需定向读取 `design.json`、assets、styles 和 components。
-3. 复用目标仓库既有技术栈和已批准组件，保护 API、路由、状态、校验、错误处理及数据流。
-4. 启动真实应用；优先当前浏览器，无控制能力时使用外部 Playwright MCP 或项目现有浏览器测试。
-5. 多模态 Agent 对比原稿与真实页面截图并迭代，直到无高、中优先级差异。
-6. 任何可能影响交互或业务流程的修改都运行相关验证。
-7. 视觉和业务门禁全部通过后，才更新 CLI 返回的外部 `stateFile` 并通知人工验收。
-8. 准备提交前运行 `git diff --cached --name-only`，发现 `.design-context/`、Playwright 报告、coverage、截图、原始 JSON、导出资产或临时证据已暂存时停止提交；Skill 不执行 `git add -A`。
+2. 查看 manifest screenshot，并在读取目标实现前确认它与用户描述的设计范围一致；`design_scope_suspicious`、空白截图或主要元素缺失会阻塞该目标，不能用 refresh 修复。
+3. 范围不匹配时，请用户在设计平台选择包含全部内容的外层 Frame、Group、Section 或 Component，再复制所选内容的链接；不得静默猜测父节点或兄弟节点。
+4. 范围匹配后按需定向读取 `design.json`、assets、styles 和 components。
+5. 复用目标仓库既有技术栈和已批准组件，保护 API、路由、状态、校验、错误处理及数据流。
+6. 启动真实应用；优先当前浏览器，无控制能力时使用外部 Playwright MCP 或项目现有浏览器测试。
+7. 多模态 Agent 对比原稿与真实页面截图并迭代，直到无高、中优先级差异。
+8. 任何可能影响交互或业务流程的修改都运行相关验证。
+9. 视觉和业务门禁全部通过后，才更新 CLI 返回的外部 `stateFile` 并通知人工验收。
+10. 准备提交前运行 `git diff --cached --name-only`，发现 `.design-context/`、Playwright 报告、coverage、截图、原始 JSON、导出资产或临时证据已暂存时停止提交；Skill 不执行 `git add -A`。
 
 CLI 不进行图片识别、视觉评分或最终验收判断，也不提供自有 MCP/HTTP 服务。
 

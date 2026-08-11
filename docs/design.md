@@ -40,7 +40,7 @@ Core 只依赖 `DesignSourceAdapter`、`DesignTarget`、`DesignDocument`、`Remo
 3. 有效同 fingerprint 缓存直接复用，不触发凭据或来源请求。
 4. Adapter 获取原始节点，归一化为 `design.json`，并在内存中返回临时 `RemoteAsset` URL。
 5. Core 在 destination 同父目录创建 staging，写入安全 raw/design，下载根截图和素材。
-6. 根截图或核心结构失败则丢弃 staging；非关键素材失败形成 retryable diagnostic 和 partial 包。
+6. 根截图或核心结构失败则丢弃 staging；非关键素材失败形成 retryable diagnostic 和 partial 包；无子节点、文字或可导出资产的叶子基础图形形成不可重试的 `design_scope_suspicious` 和 partial 包。
 7. schema 校验通过后，现有 destination 先移到 UUID backup，再原子发布 staging；任一步失败恢复旧缓存。
 8. Core 离线生成 AI_CONTEXT、styles、components；renderer 只读取通用 IR。
 
@@ -58,7 +58,7 @@ Token、Authorization、Cookie、secret 和 signed asset URL 不得进入 manife
 - node ID 到本地 asset 的映射；
 - `{code, message, retryable, nodeId}` diagnostics。
 
-校验拒绝绝对路径、空路径、`..` 越界、symlink 越界、JSON 结构错误、provider/document 不一致、缺少根节点或核心文件。声明的非核心资产缺失降级为 partial。
+校验拒绝绝对路径、空路径、`..` 越界、symlink 越界、JSON 结构错误、provider/document 不一致、缺少根节点或核心文件。声明的非核心资产缺失降级为 partial。校验还会根据 `design.json` 重新计算 `design_scope_suspicious`，使旧的 complete manifest 不能绕过来源范围门禁；这只是结构判断，图片语义仍由多模态 Agent 负责。
 
 `design.json` 的节点至少包含 ID、name、type、visible、bounds、children 和 style，可选 text、assetRef、componentRef 与 componentProperties。平台不能可靠归一化的字段保留在安全 raw source，不伪造通用语义。
 
@@ -105,7 +105,7 @@ Skill 支持：
 - `continuation`：从有效状态继续；
 - `adoption`：此前人工迁移过，由用户点名参考后接管。
 
-每种模式都要求明确 target repository、target page/route 和 design-platform URL。迁移还要求 approved reference 与 protected business behavior，不允许全仓扫描猜测。
+每种模式都要求明确 target repository、target page/route 和 design-platform URL。迁移还要求 approved reference 与 protected business behavior，不允许全仓扫描猜测。Skill 在读取目标实现前把原稿截图与用户描述的视觉范围对照；范围错误只阻塞引用该来源的目标，不静默改用父节点或兄弟节点。
 
 视觉验收必须取得真实运行页面截图，由多模态 Agent 同时查看原稿和实际图，逐项检查结构、几何、排版、颜色、素材、裁剪和状态。可能影响交互或业务时必须验证；视觉通过但业务失败仍为 blocked。全部工具门禁通过后才通知人工验收。
 

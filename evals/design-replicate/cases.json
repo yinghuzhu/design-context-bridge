@@ -218,5 +218,22 @@
       "target": "validated-after-cleanliness-gate"
     },
     "completionAllowed": true
+  },
+  {
+    "name": "design-scope-mismatch",
+    "fixture": "fixtures/design-scope-mismatch.json",
+    "provider": "figma",
+    "designUrl": "https://www.figma.com/design/EVAL/Auth?node-id=891-1524",
+    "prompt": "在 ./project 实现 Sign in / Register 弹窗，design-platform URL 是 https://www.figma.com/design/EVAL/Auth?node-id=891-1524；应包含标题、邮箱输入框、错误提示、继续按钮和底部协议。",
+    "expectedReads": [],
+    "forbiddenReads": ["project/AGENTS.md", "project/CLAUDE.md", "project/src/**", "project/tests/**", "production/**"],
+    "expectedCommands": ["design-context workspace resolve", "design-context prepare --target", "design-context validate-package", "design-context inspect"],
+    "expectedState": {
+      "sourceScope": "blocked",
+      "diagnostic": "design_scope_suspicious-non-retryable",
+      "targetRepository": "implementation-unread-and-unmodified",
+      "target": "not-implemented"
+    },
+    "completionAllowed": false
   }
 ]

@@ -29,6 +29,7 @@ describe('cross-Agent evaluation contract', () => {
       'continuation', 'adoption-with-user-reference', 'bounded-large-repository',
       'playwright-mcp-fallback', 'documented-login', 'mfa-user-handoff',
       'visual-pass-business-fail', 'provider-selection', 'repository-cleanliness',
+      'design-scope-mismatch',
     ]));
   });
 
@@ -78,6 +79,11 @@ describe('cross-Agent evaluation contract', () => {
     expect(values['provider-selection']?.expectedState.selection).toBe('registry-url-match');
     expect(values['repository-cleanliness']?.expectedState.repositoryPollution).toBe('none');
     expect(values['repository-cleanliness']?.expectedState.stagedGeneratedFiles).toBe('none');
+    expect(values['design-scope-mismatch']?.expectedReads).toEqual([]);
+    expect(values['design-scope-mismatch']?.expectedState.sourceScope).toBe('blocked');
+    expect(values['design-scope-mismatch']?.expectedState.targetRepository).toBe('implementation-unread-and-unmodified');
+    expect(values['design-scope-mismatch']?.completionAllowed).toBe(false);
+    expect(values['design-scope-mismatch']?.expectedCommands).not.toContain('design-context prepare --target --refresh');
   });
 
   it('uses external workspace commands and never stages generated files', async () => {

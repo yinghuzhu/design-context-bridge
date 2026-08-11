@@ -119,6 +119,76 @@ describe('validatePackage', () => {
     });
   });
 
+  it('downgrades a cached complete package with a low-information primitive root', async () => {
+    const root = await temporaryDirectory('suspicious-scope');
+    await writePackage(root);
+    const design = JSON.parse(
+      await readFile(join(root, 'design.json'), 'utf8'),
+    ) as { nodes: Record<string, Record<string, unknown>> };
+    design.nodes['1:2'] = {
+      ...design.nodes['1:2'],
+      type: 'RECTANGLE',
+      children: [],
+      style: {
+        fills: [{ type: 'SOLID', color: { r: 1, g: 1, b: 1, a: 1 } }],
+      },
+    };
+    await writeFile(join(root, 'design.json'), JSON.stringify(design));
+
+    const result = await validatePackage(root);
+
+    expect(result).toEqual({
+      status: 'partial',
+      diagnostics: [{
+        code: 'design_scope_suspicious',
+        message: 'Selected design root 1:2 is a leaf RECTANGLE with no child nodes, text, or exportable assets. Select a containing frame, group, section, or component, or explicitly confirm that a primitive-only design is intended.',
+        retryable: false,
+        nodeId: '1:2',
+      }],
+    });
+  });
+
+  it('keeps an exportable leaf primitive complete', async () => {
+    const root = await temporaryDirectory('exportable-root');
+    await writePackage(root);
+    const design = JSON.parse(
+      await readFile(join(root, 'design.json'), 'utf8'),
+    ) as { nodes: Record<string, Record<string, unknown>> };
+    design.nodes['1:2'] = {
+      ...design.nodes['1:2'],
+      type: 'RECTANGLE',
+      children: [],
+      assetRef: '1:2',
+      style: { fills: [{ type: 'IMAGE' }] },
+    };
+    await writeFile(join(root, 'design.json'), JSON.stringify(design));
+
+    await expect(validatePackage(root)).resolves.toEqual({
+      status: 'complete',
+      diagnostics: [],
+    });
+  });
+
+  it('keeps a leaf slice complete because it defines an export region', async () => {
+    const root = await temporaryDirectory('slice-root');
+    await writePackage(root);
+    const design = JSON.parse(
+      await readFile(join(root, 'design.json'), 'utf8'),
+    ) as { nodes: Record<string, Record<string, unknown>> };
+    design.nodes['1:2'] = {
+      ...design.nodes['1:2'],
+      type: 'SLICE',
+      children: [],
+      style: {},
+    };
+    await writeFile(join(root, 'design.json'), JSON.stringify(design));
+
+    await expect(validatePackage(root)).resolves.toEqual({
+      status: 'complete',
+      diagnostics: [],
+    });
+  });
+
   it('rejects relative paths that escape the package', async () => {
     const root = await temporaryDirectory('escape');
     await writePackage(root, { screenshot: '../outside.png' });

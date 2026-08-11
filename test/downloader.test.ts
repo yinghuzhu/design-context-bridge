@@ -31,6 +31,25 @@ function design(includeSecond = true): DesignDocument {
   };
 }
 
+function lowInformationDesign(): DesignDocument {
+  return {
+    provider: 'fixture',
+    documentId: 'file123',
+    rootId: '1:2',
+    nodes: {
+      '1:2': {
+        id: '1:2',
+        name: 'Background',
+        type: 'RECTANGLE',
+        visible: true,
+        bounds: { x: 0, y: 0, width: 500, height: 650 },
+        children: [],
+        style: { fills: [{ type: 'SOLID' }] },
+      },
+    },
+  };
+}
+
 class FakeAdapter implements DesignSourceAdapter {
   readonly provider = 'fixture';
   prepareCalls = 0;
@@ -38,13 +57,16 @@ class FakeAdapter implements DesignSourceAdapter {
   failRoot = false;
   failAssets = new Set<string>();
   includeSecond = true;
+  lowInformationRoot = false;
   diagnostics: Diagnostic[] = [];
 
   supports(url: URL): boolean { return url.hostname === 'design.example'; }
   parse(): DesignTarget { return TARGET; }
   async prepare(): Promise<PreparedSource> {
     this.prepareCalls += 1;
-    const document = design(this.includeSecond);
+    const document = this.lowInformationRoot
+      ? lowInformationDesign()
+      : design(this.includeSecond);
     return {
       raw: { provider: 'fixture', token: undefined },
       design: document,
@@ -82,6 +104,43 @@ describe('preparePackage', () => {
 
     expect(result.validation.status).toBe('partial');
     expect(result.validation.diagnostics.some(({ code, nodeId }) => code === 'asset_download_failed' && nodeId === '3:4')).toBe(true);
+  });
+
+  it('publishes and revalidates a low-information primitive root as partial', async () => {
+    const adapter = new FakeAdapter();
+    adapter.lowInformationRoot = true;
+    const outputRoot = await mkdtemp(join(tmpdir(), 'design-context-download-'));
+
+    const first = await preparePackage(
+      SOURCE_URL,
+      new SourceRegistry([adapter]),
+      { outputRoot },
+    );
+    const manifest = JSON.parse(
+      await readFile(join(first.packageDirectory, 'manifest.json'), 'utf8'),
+    ) as { status: string; diagnostics: Diagnostic[] };
+
+    expect(first.validation.status).toBe('partial');
+    expect(first.validation.diagnostics).toHaveLength(1);
+    expect(first.validation.diagnostics[0]).toMatchObject({
+      code: 'design_scope_suspicious',
+      retryable: false,
+      nodeId: '1:2',
+    });
+    expect(manifest.status).toBe('partial');
+    expect(manifest.diagnostics).toHaveLength(1);
+
+    adapter.prepareCalls = 0;
+    const cached = await preparePackage(
+      SOURCE_URL,
+      new SourceRegistry([adapter]),
+      { outputRoot },
+    );
+
+    expect(cached.cacheHit).toBe(true);
+    expect(cached.validation.status).toBe('partial');
+    expect(cached.validation.diagnostics).toHaveLength(1);
+    expect(adapter.prepareCalls).toBe(0);
   });
 
   it('preserves an existing destination when the root screenshot fails', async () => {

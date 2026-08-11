@@ -1,0 +1,15 @@
+{
+  "kind": "abstract-eval-fixture",
+  "provider": "figma",
+  "designUrl": "https://www.figma.com/design/EVAL/Auth?node-id=891-1524",
+  "capabilities": {"multimodal": true, "designContextCli": true},
+  "repository": {"path": "project", "target": "Sign in / Register modal", "implementationMustRemainUnread": true, "mustRemainUnmodified": true},
+  "context": {
+    "prepare": "partial",
+    "validatePackage": "partial",
+    "diagnostic": {"code": "design_scope_suspicious", "retryable": false, "nodeId": "891:1524"},
+    "root": {"name": "Rectangle 4474", "type": "RECTANGLE", "width": 500, "height": 650, "children": 0, "textNodes": 0, "exportableAssets": 0},
+    "sourceScreenshot": "near-uniform white background with a faint rounded border"
+  },
+  "expectedVisualElements": ["Sign in / Register heading", "email input", "validation message", "continue button", "terms and privacy links"]
+}

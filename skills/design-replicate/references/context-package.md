@@ -45,6 +45,14 @@ design-context prepare "$DESIGN_URL" \
 
 根截图、`design.json`、`source/raw.json` 或 schema v1 manifest 缺失均按 invalid。鉴权、结构和文件系统错误不能用 `--refresh` 掩盖。
 
+## 设计来源范围诊断
+
+CLI 会对规范化 `design.json` 做确定性结构检查，不做图片识别。当设计根节点只是没有子节点、文字或可导出资产的基础图形时，prepare 和 validate-package 返回 `partial`，并包含 `design_scope_suspicious` 与 `retryable: false`。validate-package 会重新计算该诊断，因此旧缓存中的 `complete` manifest 不能绕过门禁。
+
+该诊断通常表示 design-platform URL 选中了背景、边框或其他局部图层，而不是用户看到的完整设计范围。同一个 node ID 刷新后仍是同一图层，因此不得使用 `--refresh` 处理此诊断。多模态 Agent 必须查看 screenshot 并与用户描述的页面、弹窗、Tab、表单、Section、Component 或 Flow 对照：如果截图为空白、近乎单色或缺少主要元素，在读取目标仓库实现前停止该目标。
+
+提示用户在设计平台图层面板选择包含全部目标内容的外层 Frame、Group、Section 或 Component，并复制“所选内容的链接”。Agent 可以有界检查父级候选，但不得静默替换用户提供的节点；node ID 变化必须进入执行契约确认。只有用户明确说明目标就是该基础图形时，才能把它作为显式例外继续。
+
 ## 渐进读取
 
 1. 读取 `AI_CONTEXT.md` 建立导航。

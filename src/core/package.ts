@@ -19,6 +19,14 @@ import type { ExportFormat } from '../sources/types.js';
 
 export const SCHEMA_VERSION = 1 as const;
 
+const LOW_INFORMATION_PRIMITIVE_TYPES = new Set([
+  'RECTANGLE',
+  'ELLIPSE',
+  'LINE',
+  'POLYGON',
+  'STAR',
+]);
+
 export interface PackageManifestV1 {
   schemaVersion: 1;
   source: {
@@ -54,6 +62,25 @@ export function buildFingerprint(
     scale,
   });
   return createHash('sha256').update(payload).digest('hex');
+}
+
+export function diagnoseDesignScope(document: DesignDocument): Diagnostic[] {
+  const root = document.nodes[document.rootId];
+  if (
+    root === undefined ||
+    !LOW_INFORMATION_PRIMITIVE_TYPES.has(root.type) ||
+    root.children.length > 0 ||
+    (root.text !== undefined && root.text.characters.trim().length > 0) ||
+    root.assetRef !== undefined
+  ) {
+    return [];
+  }
+  return [{
+    code: 'design_scope_suspicious',
+    message: `Selected design root ${root.id} is a leaf ${root.type} with no child nodes, text, or exportable assets. Select a containing frame, group, section, or component, or explicitly confirm that a primitive-only design is intended.`,
+    retryable: false,
+    nodeId: root.id,
+  }];
 }
 
 export async function validatePackage(
@@ -137,6 +164,7 @@ export async function validatePackage(
       ),
     );
   }
+  const scopeDiagnostics = design === null ? [] : diagnoseDesignScope(design);
 
   const assetDiagnostics: Diagnostic[] = [];
   for (const [nodeId, entry] of Object.entries(manifest.files)) {
@@ -160,13 +188,39 @@ export async function validatePackage(
   if (structural.length > 0 || manifest.status === 'invalid') {
     return {
       status: 'invalid',
-      diagnostics: [...structural, ...manifestDiagnostics, ...assetDiagnostics],
+      diagnostics: deduplicateDiagnostics([
+        ...structural,
+        ...manifestDiagnostics,
+        ...scopeDiagnostics,
+        ...assetDiagnostics,
+      ]),
     };
   }
   return {
-    status: assetDiagnostics.length > 0 ? 'partial' : manifest.status,
-    diagnostics: [...manifestDiagnostics, ...assetDiagnostics],
+    status: assetDiagnostics.length > 0 || scopeDiagnostics.length > 0
+      ? 'partial'
+      : manifest.status,
+    diagnostics: deduplicateDiagnostics([
+      ...manifestDiagnostics,
+      ...scopeDiagnostics,
+      ...assetDiagnostics,
+    ]),
   };
+}
+
+function deduplicateDiagnostics(values: readonly Diagnostic[]): Diagnostic[] {
+  const seen = new Set<string>();
+  return values.filter((value) => {
+    const key = JSON.stringify([
+      value.code,
+      value.message,
+      value.retryable,
+      value.nodeId,
+    ]);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 export async function publishStaging(

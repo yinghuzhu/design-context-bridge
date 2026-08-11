@@ -6,6 +6,7 @@
 - Add `workspace resolve`, `prepare --target`, realpath-aware in-repository output refusal, and explicit `--allow-in-repo` risk acceptance.
 - Add validated legacy state import, dual-state conflict detection, and staged generated-file gates for Agents.
 - Pin the original path hash in Git-local metadata for rename-safe identity, add readable workspace directory names and metadata, and retain path-hash fallback when Git is absent.
+- Detect low-information leaf design primitives as non-retryable partial packages, recheck old caches, and block Agent implementation when the source screenshot does not match the user-described target scope.
 
 ## 0.2.0 - 2026-08-09
 

@@ -4,13 +4,15 @@
 
 读取目标仓库实现前，从用户、适用项目说明或 CLI 校验通过的外部 migration state 确认：
 
-- `design-platform URL`：本次目标对应的设计节点。
+- `design-platform URL`：本次目标对应的设计节点，并且所选节点应包含用户期望复刻的完整设计范围。
 - `target directory`：要修改的仓库或目录。
 - `target page/route`：本次页面、路由或明确入口。
 - 迁移任务的 `approved completed new references`：已完成且获批准的新版页面；`initial` 必须明确为无。
 - 迁移任务的 `protected business behavior`：不得改变的 API、路由、状态、校验、错误处理、交互和业务流程；没有时也要明确为无。
 
 适用的 `AGENTS.md`、`CLAUDE.md`、README、测试说明或用户指定文档已经写明且互不冲突时，不要求重复输入。目标目录确定后用 `design-context workspace resolve` 和 `design-context migration validate` 读取外部事实；不得通过搜索仓库中的生成目录猜测状态。输入缺失时先询问，且不得扫描或修改目标仓库。
+
+如果 prepare 后发现 URL 只选中了背景或局部基础图形，不能把画布上重叠但不属于该节点的内容当作已下载设计。应提示用户选择包含全部内容的外层 Frame、Group、Section 或 Component，再复制“所选内容的链接”；不得要求用户手工填写 node ID，也不得静默猜测父节点。
 
 ## 范围角色
 
